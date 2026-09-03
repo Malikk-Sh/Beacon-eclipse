@@ -4,16 +4,19 @@ import './style.css';
 import './dialogue.css';
 import { DialogueSystem } from './game/DialogueSystem';
 import { EnergySystem } from './game/EnergySystem';
+import { FullscreenController } from './game/FullscreenController';
 import { InputController } from './game/InputController';
 import { InteractionSystem } from './game/InteractionSystem';
 import { MemoryReconstructionSystem } from './game/MemoryReconstructionSystem';
 import { PlayerController } from './game/PlayerController';
 import { SaveSystem } from './game/SaveSystem';
 import { SchoolReconstruction } from './game/SchoolReconstruction';
+import { GraphicsQuality, SettingsStore } from './game/SettingsStore';
 import { SoykaController } from './game/SoykaController';
 import { createDefaultStoryState } from './game/StoryState';
 import { GameWorld } from './game/World';
 import { Hud } from './ui/Hud';
+import { PauseMenu } from './ui/PauseMenu';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('Missing #app root');
@@ -21,12 +24,16 @@ if (!app) throw new Error('Missing #app root');
 const saves = new SaveSystem();
 const loadedState = saves.load();
 const storyState = loadedState ?? createDefaultStoryState();
+const settingsStore = new SettingsStore();
+const settings = settingsStore.load();
+const fullscreen = new FullscreenController();
 
 await RAPIER.init();
 const physics = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
 const energy = new EnergySystem();
 energy.restore(storyState.energy);
 const hud = new Hud(app, energy);
+const pauseMenu = new PauseMenu(app);
 const dialogue = new DialogueSystem(hud);
 const world = new GameWorld(physics);
 const memory = new MemoryReconstructionSystem(world.scene, new THREE.Vector3(-3, 0, -10.8));
@@ -61,21 +68,40 @@ school.restore(
 hud.refreshEnergy();
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 hud.gameContainer.appendChild(renderer.domElement);
+
+const qualityPresets: Record<GraphicsQuality, { pixelRatio: number; shadows: boolean }> = {
+  low: { pixelRatio: 1, shadows: false },
+  medium: { pixelRatio: 1.25, shadows: true },
+  high: { pixelRatio: 1.6, shadows: true },
+};
+
+function applyGraphicsQuality(quality: GraphicsQuality) {
+  const preset = qualityPresets[quality];
+  renderer.setPixelRatio(Math.min(devicePixelRatio, preset.pixelRatio));
+  renderer.shadowMap.enabled = preset.shadows;
+  renderer.setSize(innerWidth, innerHeight);
+}
+
+pauseMenu.setQuality(settings.quality);
+applyGraphicsQuality(settings.quality);
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
 const input = new InputController(hud.joystick, hud.stick, renderer.domElement);
 const interactions = new InteractionSystem(hud.interactButton);
+const pauseButton = app.querySelector<HTMLButtonElement>('.pause');
+if (!pauseButton) throw new Error('Missing pause button');
 
 let warehouseConversationActive = false;
 let warehouseFarewellActive = false;
+let paused = false;
 let yaw = storyState.player.yaw;
 let pitch = -0.12;
 let autosaveElapsed = 0;
+let gameElapsed = 0;
 
 function rememberResponse(kind: keyof typeof storyState.responseProfile) {
   storyState.responseProfile[kind] += 1;
@@ -100,6 +126,56 @@ function persist(showIndicator = false) {
   const saved = saves.save(captureStoryState());
   if (saved && showIndicator) hud.flashAutosave();
 }
+
+function setPaused(next: boolean) {
+  if (paused === next) return;
+  paused = next;
+  if (paused) {
+    input.consumeLookDelta();
+    persist(false);
+    pauseMenu.open();
+  } else {
+    pauseMenu.close();
+    pauseButton.focus({ preventScroll: true });
+  }
+}
+
+function syncFullscreenState() {
+  pauseMenu.setFullscreenState(fullscreen.isFullscreen(), fullscreen.isSupported());
+}
+
+pauseButton.addEventListener('click', () => setPaused(true));
+pauseMenu.continueButton.addEventListener('click', () => setPaused(false));
+pauseMenu.backButton.addEventListener('click', () => setPaused(false));
+pauseMenu.fullscreenButton.addEventListener('click', async () => {
+  try {
+    await fullscreen.toggle();
+  } catch (error) {
+    console.warn('Fullscreen request failed', error);
+  }
+  syncFullscreenState();
+});
+pauseMenu.qualitySelect.addEventListener('change', () => {
+  const quality = pauseMenu.qualitySelect.value as GraphicsQuality;
+  settings.quality = quality;
+  settingsStore.save(settings);
+  applyGraphicsQuality(quality);
+});
+fullscreen.subscribe(syncFullscreenState);
+syncFullscreenState();
+
+const dialogueChoiceKeys = new Set(['Digit1', 'Digit2', 'Digit3', 'Numpad1', 'Numpad2', 'Numpad3']);
+addEventListener('keydown', (event) => {
+  if (event.code === 'Escape') {
+    event.preventDefault();
+    setPaused(!paused);
+    return;
+  }
+  if (paused && dialogueChoiceKeys.has(event.code)) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  }
+}, true);
 
 function syncObjective() {
   const progress = storyState.progress;
@@ -444,56 +520,58 @@ const cameraOffset = new THREE.Vector3();
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.033);
-  const elapsed = clock.elapsedTime;
 
-  input.update();
-  const look = input.consumeLookDelta();
-  yaw -= look.x * 0.004;
-  pitch = THREE.MathUtils.clamp(pitch - look.y * 0.003, -0.55, 0.25);
+  if (!paused) {
+    gameElapsed += dt;
+    input.update();
+    const look = input.consumeLookDelta();
+    yaw -= look.x * 0.004;
+    pitch = THREE.MathUtils.clamp(pitch - look.y * 0.003, -0.55, 0.25);
 
-  player.update(input, yaw, dt);
-  physics.timestep = dt;
-  physics.step();
-  player.syncVisual();
+    player.update(input, yaw, dt);
+    physics.timestep = dt;
+    physics.step();
+    player.syncVisual();
 
-  if (
-    storyState.progress.bridgeStarted
-    && !storyState.progress.schoolEntered
-    && player.position.distanceTo(school.entrance) < 4.8
-  ) {
-    storyState.progress.schoolEntered = true;
-    hud.setObjective('ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ');
-    persist(true);
-    if (!dialogue.isBusy) {
-      dialogue.play([
-        { kind: 'line', speaker: 'НИКА', text: 'Школа?..', duration: 1.8 },
-        { kind: 'line', speaker: 'МАРА', text: 'Старая городская школа. Здесь ещё жив архивный узел.', duration: 3.1 },
-        { kind: 'line', speaker: 'СОЙКА', text: 'Могу попробовать восстановить.', duration: 2.4 },
-      ]);
+    if (
+      storyState.progress.bridgeStarted
+      && !storyState.progress.schoolEntered
+      && player.position.distanceTo(school.entrance) < 4.8
+    ) {
+      storyState.progress.schoolEntered = true;
+      hud.setObjective('ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ');
+      persist(true);
+      if (!dialogue.isBusy) {
+        dialogue.play([
+          { kind: 'line', speaker: 'НИКА', text: 'Школа?..', duration: 1.8 },
+          { kind: 'line', speaker: 'МАРА', text: 'Старая городская школа. Здесь ещё жив архивный узел.', duration: 3.1 },
+          { kind: 'line', speaker: 'СОЙКА', text: 'Могу попробовать восстановить.', duration: 2.4 },
+        ]);
+      }
     }
+
+    dialogue.update(dt);
+    interactions.update(player.position);
+    soyka.update(player.position, gameElapsed, dt);
+    memory.update(dt);
+    school.update(dt, player);
+    world.update(dt);
+
+    autosaveElapsed += dt;
+    if (autosaveElapsed >= 5) {
+      autosaveElapsed = 0;
+      persist(false);
+    }
+
+    cameraTarget.set(player.position.x, player.position.y + 1.45, player.position.z);
+    cameraOffset.set(
+      Math.sin(yaw) * Math.cos(pitch) * 7.5,
+      3.1 + Math.sin(-pitch) * 4,
+      Math.cos(yaw) * Math.cos(pitch) * 7.5,
+    );
+    camera.position.lerp(cameraTarget.clone().add(cameraOffset), 0.08);
+    camera.lookAt(cameraTarget);
   }
-
-  dialogue.update(dt);
-  interactions.update(player.position);
-  soyka.update(player.position, elapsed, dt);
-  memory.update(dt);
-  school.update(dt, player);
-  world.update(dt);
-
-  autosaveElapsed += dt;
-  if (autosaveElapsed >= 5) {
-    autosaveElapsed = 0;
-    persist(false);
-  }
-
-  cameraTarget.set(player.position.x, player.position.y + 1.45, player.position.z);
-  cameraOffset.set(
-    Math.sin(yaw) * Math.cos(pitch) * 7.5,
-    3.1 + Math.sin(-pitch) * 4,
-    Math.cos(yaw) * Math.cos(pitch) * 7.5,
-  );
-  camera.position.lerp(cameraTarget.clone().add(cameraOffset), 0.08);
-  camera.lookAt(cameraTarget);
 
   renderer.render(world.scene, camera);
 }
