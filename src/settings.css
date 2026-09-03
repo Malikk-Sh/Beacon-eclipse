@@ -1,0 +1,180 @@
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  background: rgba(2, 7, 11, 0.72);
+  backdrop-filter: blur(14px);
+  user-select: none;
+}
+
+.settings-card {
+  width: min(620px, 92vw);
+  max-height: min(620px, 88vh);
+  overflow: auto;
+  border: 1px solid rgba(188, 215, 228, 0.28);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(13, 25, 33, 0.98), rgba(7, 15, 21, 0.98));
+  box-shadow: 0 28px 100px rgba(0, 0, 0, 0.68);
+  padding: clamp(20px, 4vw, 34px);
+}
+
+.settings-header small {
+  display: block;
+  color: #8ba0ad;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+}
+
+.settings-header h2 {
+  margin: 7px 0 8px;
+  font-size: clamp(22px, 4vw, 32px);
+  font-weight: 600;
+  letter-spacing: 0.045em;
+}
+
+.settings-header p {
+  margin: 0;
+  color: #91a3ae;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.settings-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.settings-row {
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 13px 15px;
+  border: 1px solid rgba(188, 215, 228, 0.16);
+  border-radius: 9px;
+  background: rgba(18, 32, 41, 0.88);
+  text-align: left;
+  letter-spacing: 0.035em;
+}
+
+button.settings-row { cursor: pointer; }
+button.settings-row:hover:not(:disabled),
+button.settings-row:focus-visible,
+.settings-quality:focus-within {
+  border-color: rgba(255, 194, 56, 0.62);
+  outline: none;
+}
+
+.settings-row b {
+  color: #ffc238;
+  font-size: 13px;
+  letter-spacing: 0.09em;
+}
+
+.settings-row:disabled {
+  cursor: default;
+  opacity: 0.48;
+}
+
+.settings-quality select {
+  min-width: 132px;
+  border: 1px solid rgba(188, 215, 228, 0.2);
+  border-radius: 7px;
+  background: #0c1820;
+  color: #e8eef3;
+  padding: 9px 30px 9px 10px;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: 0.055em;
+}
+
+.settings-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.settings-actions button {
+  min-height: 48px;
+  border-radius: 9px;
+  padding: 11px 16px;
+  letter-spacing: 0.065em;
+  cursor: pointer;
+}
+
+.settings-primary {
+  border: 1px solid rgba(255, 194, 56, 0.58);
+  background: rgba(67, 55, 27, 0.78);
+  color: #ffe29a;
+}
+
+.settings-secondary {
+  border: 1px solid rgba(188, 215, 228, 0.2);
+  background: #14222b;
+}
+
+.settings-actions button:focus-visible {
+  outline: 2px solid rgba(255, 210, 102, 0.75);
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .settings-card {
+    width: min(560px, 94vw);
+    padding: 18px;
+  }
+
+  .settings-header p {
+    display: none;
+  }
+
+  .settings-list {
+    margin-top: 16px;
+  }
+
+  .settings-row {
+    min-height: 50px;
+    font-size: 12px;
+  }
+
+  .settings-actions {
+    margin-top: 16px;
+  }
+}
+
+@media (max-height: 430px) {
+  .settings-card {
+    max-height: 92vh;
+    padding: 14px 18px;
+  }
+
+  .settings-header h2 {
+    margin-block: 4px;
+    font-size: 20px;
+  }
+
+  .settings-header p {
+    display: none;
+  }
+
+  .settings-list {
+    margin-top: 10px;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-row {
+    min-height: 46px;
+    padding-block: 9px;
+  }
+
+  .settings-actions {
+    margin-top: 10px;
+  }
+}
