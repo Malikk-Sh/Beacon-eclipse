@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { InputController } from './InputController';
 
+export const PLAYER_SCENE_NAME = 'lev-player';
+
 export class PlayerController {
   readonly object = new THREE.Group();
   private readonly body: RAPIER.RigidBody;
@@ -12,6 +14,8 @@ export class PlayerController {
   private readonly speed = 5.1;
 
   constructor(private readonly physics: RAPIER.World, scene: THREE.Scene, spawn = new THREE.Vector3(0, 0, 24)) {
+    this.object.name = PLAYER_SCENE_NAME;
+
     const torso = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.55, 1.15, 4, 8),
       new THREE.MeshStandardMaterial({ color: 0x18222b, roughness: 0.75 }),
