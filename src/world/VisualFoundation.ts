@@ -31,14 +31,6 @@ export class VisualFoundation {
       || child instanceof THREE.Points
     ));
 
-    for (const child of removable) {
-      scene.remove(child);
-      if (child instanceof THREE.Points) {
-        child.geometry.dispose();
-        const material = child.material;
-        if (Array.isArray(material)) material.forEach((item) => item.dispose());
-        else material.dispose();
-      }
-    }
+    for (const child of removable) scene.remove(child);
   }
 }
