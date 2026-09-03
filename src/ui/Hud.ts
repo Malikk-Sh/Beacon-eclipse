@@ -20,6 +20,8 @@ export class Hud {
   private readonly choiceTimerFill: HTMLElement;
   private readonly energyAvailable: HTMLElement;
   private readonly objective: HTMLElement;
+  private readonly saveIndicator: HTMLElement;
+  private saveIndicatorTimer = 0;
 
   constructor(private readonly root: HTMLElement, private readonly energy: EnergySystem) {
     root.innerHTML = `
@@ -28,6 +30,7 @@ export class Hud {
         <button class="pause" aria-label="Пауза">Ⅱ</button>
         <div class="weather">☔ <span>22:47</span><small>9°C</small></div>
         <div class="objective" id="objective"><span>◆</span><b>НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ</b></div>
+        <div class="save-indicator hidden" id="saveIndicator">◇ СОХРАНЕНО</div>
         <div class="joystick" id="joystick"><div class="stick" id="stick"></div></div>
         <button class="soyka-button" id="soykaButton"><span class="soyka-dot"></span><b>СОЙКА</b></button>
         <button class="interact hidden" id="interactButton">⚡ ВЗАИМОДЕЙСТВОВАТЬ</button>
@@ -64,6 +67,7 @@ export class Hud {
     this.choiceTimerFill = this.require('#choiceTimerFill');
     this.energyAvailable = this.require('#energyAvailable');
     this.objective = this.require('#objective b');
+    this.saveIndicator = this.require('#saveIndicator');
 
     const systems = this.require('#energySystems');
     for (const definition of energy.definitions) {
@@ -131,6 +135,16 @@ export class Hud {
 
   setObjective(text: string) {
     this.objective.textContent = text;
+  }
+
+  flashAutosave() {
+    this.saveIndicator.classList.remove('hidden');
+    this.saveIndicator.classList.remove('fade');
+    void this.saveIndicator.offsetWidth;
+    this.saveIndicator.classList.add('fade');
+    this.saveIndicatorTimer = window.setTimeout(() => {
+      this.saveIndicator.classList.add('hidden');
+    }, 1500);
   }
 
   openEnergy() {
