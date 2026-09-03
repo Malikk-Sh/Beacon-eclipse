@@ -8,6 +8,7 @@ export class Hud {
   readonly energyPanel: HTMLElement;
   readonly dialogue: HTMLElement;
   private readonly energyAvailable: HTMLElement;
+  private readonly objective: HTMLElement;
 
   constructor(private readonly root: HTMLElement, private readonly energy: EnergySystem) {
     root.innerHTML = `
@@ -15,11 +16,11 @@ export class Hud {
       <div class="hud">
         <button class="pause" aria-label="Пауза">Ⅱ</button>
         <div class="weather">☔ <span>22:47</span><small>9°C</small></div>
-        <div class="objective"><span>◆</span> ВОССТАНОВИТЬ ПИТАНИЕ МОСТА</div>
+        <div class="objective" id="objective"><span>◆</span><b>НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ</b></div>
         <div class="joystick" id="joystick"><div class="stick" id="stick"></div></div>
         <button class="soyka-button" id="soykaButton"><span class="soyka-dot"></span><b>СОЙКА</b></button>
         <button class="interact hidden" id="interactButton">⚡ ВЗАИМОДЕЙСТВОВАТЬ</button>
-        <div class="dialogue" id="dialogue">МАРА: Северный энергетический узел не отвечает.</div>
+        <div class="dialogue" id="dialogue">МАРА: Лев? Если слышишь меня — найди аварийный щит.</div>
       </div>
       <div class="energy-panel hidden" id="energyPanel">
         <div class="panel-card">
@@ -38,6 +39,7 @@ export class Hud {
     this.energyPanel = this.require('#energyPanel');
     this.dialogue = this.require('#dialogue');
     this.energyAvailable = this.require('#energyAvailable');
+    this.objective = this.require('#objective b');
 
     const systems = this.require('#energySystems');
     for (const definition of energy.definitions) {
@@ -61,6 +63,10 @@ export class Hud {
 
   setDialogue(text: string) {
     this.dialogue.textContent = text;
+  }
+
+  setObjective(text: string) {
+    this.objective.textContent = text;
   }
 
   openEnergy() {
