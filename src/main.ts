@@ -92,8 +92,9 @@ applyGraphicsQuality(settings.quality);
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
 const input = new InputController(hud.joystick, hud.stick, renderer.domElement);
 const interactions = new InteractionSystem(hud.interactButton);
-const pauseButton = app.querySelector<HTMLButtonElement>('.pause');
-if (!pauseButton) throw new Error('Missing pause button');
+const pauseButtonCandidate = app.querySelector<HTMLButtonElement>('.pause');
+if (!pauseButtonCandidate) throw new Error('Missing pause button');
+const pauseButton: HTMLButtonElement = pauseButtonCandidate;
 
 let warehouseConversationActive = false;
 let warehouseFarewellActive = false;
