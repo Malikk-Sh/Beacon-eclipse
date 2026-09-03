@@ -1,4 +1,5 @@
 import { Hud } from '../ui/Hud';
+import { MEMORY_ECHO_EVENT, MemoryEchoCustomEvent } from './MemoryEchoEvent';
 
 export interface DialogueLineStep {
   kind: 'line';
@@ -36,6 +37,12 @@ export class DialogueSystem {
       if (Number.isInteger(index) && index >= 0 && index < this.current.options.length) {
         this.selectChoice(this.current.options[index]);
       }
+    });
+
+    window.addEventListener(MEMORY_ECHO_EVENT, (event: Event) => {
+      const memoryEvent = event as MemoryEchoCustomEvent;
+      const { speaker, text, duration } = memoryEvent.detail;
+      if (this.say(speaker, text, duration)) memoryEvent.preventDefault();
     });
   }
 
