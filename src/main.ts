@@ -17,6 +17,7 @@ import { createDefaultStoryState } from './game/StoryState';
 import { GameWorld } from './game/World';
 import { Hud } from './ui/Hud';
 import { PauseMenu } from './ui/PauseMenu';
+import { VisualFoundation } from './world/VisualFoundation';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('Missing #app root');
@@ -36,6 +37,7 @@ const hud = new Hud(app, energy);
 const pauseMenu = new PauseMenu(app);
 const dialogue = new DialogueSystem(hud);
 const world = new GameWorld(physics);
+const visualFoundation = new VisualFoundation(world.scene);
 const memory = new MemoryReconstructionSystem(world.scene, new THREE.Vector3(-3, 0, -10.8));
 const school = new SchoolReconstruction(world.scene, physics, dialogue, {
   onEchoHeard: (id) => {
@@ -70,6 +72,8 @@ hud.refreshEnergy();
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.86;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 hud.gameContainer.appendChild(renderer.domElement);
 
@@ -84,6 +88,7 @@ function applyGraphicsQuality(quality: GraphicsQuality) {
   renderer.setPixelRatio(Math.min(devicePixelRatio, preset.pixelRatio));
   renderer.shadowMap.enabled = preset.shadows;
   renderer.setSize(innerWidth, innerHeight);
+  visualFoundation.setQuality(quality);
 }
 
 pauseMenu.setQuality(settings.quality);
@@ -557,6 +562,7 @@ function animate() {
     memory.update(dt);
     school.update(dt, player);
     world.update(dt);
+    visualFoundation.update(dt);
 
     autosaveElapsed += dt;
     if (autosaveElapsed >= 5) {
