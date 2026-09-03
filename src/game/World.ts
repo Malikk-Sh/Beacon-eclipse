@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
+import type { EnergySystemName } from './EnergySystem';
 
 export interface WorldLandmarks {
   lighthousePanel: THREE.Vector3;
@@ -25,6 +26,17 @@ export class GameWorld {
   private lighthouseDoorCollider: RAPIER.Collider | null;
   private lighthouseDoorOpening = false;
 
+  private readonly warehouseLight = new THREE.PointLight(0xffb45f, 0, 15, 2);
+  private readonly portPowerLight = new THREE.PointLight(0xff9a4c, 0, 24, 2);
+  private readonly pumpLight = new THREE.PointLight(0x67c9ff, 0, 15, 2);
+  private readonly warehouseIndicator: THREE.MeshBasicMaterial;
+  private readonly pumpIndicator: THREE.MeshBasicMaterial;
+  private readonly portIndicator: THREE.MeshBasicMaterial;
+  private readonly bridgeIndicators: THREE.MeshBasicMaterial[] = [];
+  private warehouseLightTarget = 0;
+  private portLightTarget = 0;
+  private pumpLightTarget = 0;
+
   constructor(private readonly physics: RAPIER.World) {
     this.scene.background = new THREE.Color(0x07111b);
     this.scene.fog = new THREE.FogExp2(0x07111b, 0.018);
@@ -34,10 +46,6 @@ export class GameWorld {
     keyLight.position.set(-8, 18, 6);
     keyLight.castShadow = true;
     this.scene.add(keyLight);
-
-    const portLight = new THREE.PointLight(0xff9a4c, 18, 18, 2);
-    portLight.position.set(4, 4, -8);
-    this.scene.add(portLight);
 
     const lighthouseEmergencyLight = new THREE.PointLight(0xff3c2e, 11, 15, 2);
     lighthouseEmergencyLight.position.set(-2.8, 3.2, 24);
@@ -87,6 +95,21 @@ export class GameWorld {
       for (let z = -19; z > -46; z -= 4) this.addBox(side, z, 0.12, 1.2, 0.12, 0x5d2522, 0.4);
     }
 
+    // Power-state lighting is intentionally sparse to remain mobile-friendly.
+    this.warehouseLight.position.set(8, 3.2, -8.3);
+    this.portPowerLight.position.set(-2, 4.5, -4);
+    this.pumpLight.position.set(-3, 2.7, -12.2);
+    this.scene.add(this.warehouseLight, this.portPowerLight, this.pumpLight);
+
+    this.warehouseIndicator = this.addIndicator(8, 2.7, -8.42, 0xffad55);
+    this.portIndicator = this.addIndicator(2, 2.35, -2.92, 0xffb85e);
+    this.pumpIndicator = this.addIndicator(-3, 2.1, -11.92, 0x68caff);
+    for (const side of [-2.85, 2.85]) {
+      for (let z = -20; z >= -42; z -= 5.5) {
+        this.bridgeIndicators.push(this.addIndicator(side, 1.4, z, 0xff4438));
+      }
+    }
+
     const rainPositions = new Float32Array(this.rainCount * 3);
     for (let i = 0; i < this.rainCount; i++) {
       rainPositions[i * 3] = (Math.random() - 0.5) * 70;
@@ -110,10 +133,30 @@ export class GameWorld {
     }
   }
 
+  setPowerState(system: EnergySystemName, enabled: boolean) {
+    if (system === 'warehouse') {
+      this.warehouseLightTarget = enabled ? 13 : 0;
+      this.setIndicator(this.warehouseIndicator, 0xffad55, enabled);
+    } else if (system === 'lights') {
+      this.portLightTarget = enabled ? 17 : 0;
+      this.setIndicator(this.portIndicator, 0xffb85e, enabled);
+    } else if (system === 'pumps') {
+      this.pumpLightTarget = enabled ? 12 : 0;
+      this.setIndicator(this.pumpIndicator, 0x68caff, enabled);
+    } else if (system === 'bridge') {
+      for (const indicator of this.bridgeIndicators) this.setIndicator(indicator, 0xff4438, enabled);
+    }
+  }
+
   update(dt: number) {
     if (this.lighthouseDoorOpening) {
       this.lighthouseDoor.position.y = Math.min(5.2, this.lighthouseDoor.position.y + dt * 3.1);
     }
+
+    const lightBlend = 1 - Math.exp(-dt * 5.5);
+    this.warehouseLight.intensity = THREE.MathUtils.lerp(this.warehouseLight.intensity, this.warehouseLightTarget, lightBlend);
+    this.portPowerLight.intensity = THREE.MathUtils.lerp(this.portPowerLight.intensity, this.portLightTarget, lightBlend);
+    this.pumpLight.intensity = THREE.MathUtils.lerp(this.pumpLight.intensity, this.pumpLightTarget, lightBlend);
 
     const positions = this.rainGeometry.attributes.position.array as Float32Array;
     for (let i = 0; i < this.rainCount; i++) {
@@ -121,6 +164,19 @@ export class GameWorld {
       if (positions[i * 3 + 1] < 0) positions[i * 3 + 1] = 28;
     }
     this.rainGeometry.attributes.position.needsUpdate = true;
+  }
+
+  private addIndicator(x: number, y: number, z: number, onColor: number) {
+    const material = new THREE.MeshBasicMaterial({ color: 0x11181d });
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.085, 8, 6), material);
+    mesh.position.set(x, y, z);
+    mesh.userData.onColor = onColor;
+    this.scene.add(mesh);
+    return material;
+  }
+
+  private setIndicator(material: THREE.MeshBasicMaterial, onColor: number, enabled: boolean) {
+    material.color.setHex(enabled ? onColor : 0x11181d);
   }
 
   private addBox(x: number, z: number, sx: number, sy: number, sz: number, color: number, y = 0) {
