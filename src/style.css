@@ -1,0 +1,91 @@
+* { box-sizing: border-box; }
+html, body, #app, #game { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: #07111b; color: #e8eef3; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; touch-action: none; }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+button { font: inherit; color: inherit; }
+.hidden { display: none !important; }
+
+.hud { position: fixed; inset: 0; pointer-events: none; user-select: none; }
+.pause, .soyka-button, .interact, .joystick, .energy-panel button { pointer-events: auto; }
+.pause {
+  position: absolute; left: max(16px, env(safe-area-inset-left)); top: max(16px, env(safe-area-inset-top));
+  width: 54px; height: 54px; border: 1px solid rgba(220,235,245,.32); border-radius: 12px;
+  background: rgba(5,12,19,.56); backdrop-filter: blur(10px); font-size: 27px;
+}
+.weather {
+  position: absolute; top: 80px; left: max(16px, env(safe-area-inset-left)); padding: 9px 12px;
+  min-width: 108px; border: 1px solid rgba(220,235,245,.18); border-radius: 10px;
+  background: rgba(5,12,19,.48); backdrop-filter: blur(9px); color: #cdd7df;
+}
+.weather span { margin-left: 8px; }
+.weather small { display: block; margin-left: 28px; opacity: .8; }
+.objective {
+  position: absolute; top: max(20px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  min-width: min(480px, 60vw); text-align: center; padding: 9px 24px; letter-spacing: .045em;
+  border-top: 1px solid rgba(220,235,245,.16); border-bottom: 1px solid rgba(220,235,245,.10);
+  background: linear-gradient(90deg, transparent, rgba(6,14,22,.7), transparent); text-shadow: 0 1px 8px #000;
+}
+.objective span { color: #ffc238; margin-right: 10px; }
+.save-indicator {
+  position: absolute; right: max(20px, env(safe-area-inset-right)); top: max(22px, env(safe-area-inset-top));
+  padding: 8px 11px; border-radius: 7px; letter-spacing: .09em; font-size: 11px; color: #b7c8d2;
+  background: rgba(5,12,19,.52); border: 1px solid rgba(190,216,229,.18); backdrop-filter: blur(7px);
+}
+.save-indicator.fade { animation: saveFade 1.5s ease both; }
+@keyframes saveFade { 0% { opacity: 0; } 18%, 68% { opacity: 1; } 100% { opacity: 0; } }
+.joystick {
+  position: absolute; left: max(34px, env(safe-area-inset-left)); bottom: max(32px, env(safe-area-inset-bottom));
+  width: 142px; height: 142px; border-radius: 50%; border: 1px solid rgba(230,240,245,.34);
+  background: rgba(4,9,14,.34); backdrop-filter: blur(5px); touch-action: none;
+}
+.stick {
+  width: 52px; height: 52px; border: 1px solid rgba(230,240,245,.34); border-radius: 50%;
+  position: absolute; left: calc(50% - 26px); top: calc(50% - 26px);
+  background: rgba(220,235,245,.06); box-shadow: inset 0 0 18px rgba(160,210,240,.05);
+  will-change: transform;
+}
+.soyka-button {
+  position: absolute; right: max(34px, env(safe-area-inset-right)); bottom: max(30px, env(safe-area-inset-bottom));
+  width: 132px; height: 132px; border-radius: 50%; border: 1px solid rgba(230,240,245,.34);
+  background: rgba(4,9,14,.42); backdrop-filter: blur(8px); display: grid; place-items: center;
+}
+.soyka-button b { font-size: 15px; letter-spacing: .06em; margin-top: -16px; font-weight: 500; }
+.soyka-dot { width: 47px; height: 47px; border-radius: 50%; border: 5px solid #313a41; background: radial-gradient(circle at 60% 45%, #aee8ff 0 6%, #38baff 8% 16%, #17242d 19% 100%); box-shadow: 0 0 18px rgba(67,190,255,.35); }
+.interact {
+  position: absolute; right: max(175px, calc(env(safe-area-inset-right) + 160px)); bottom: max(76px, calc(env(safe-area-inset-bottom) + 55px));
+  border: 1px solid rgba(255,196,60,.5); border-radius: 10px; padding: 13px 18px; background: rgba(7,14,20,.76); color: #f5d27d;
+}
+.dialogue {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: max(32px, env(safe-area-inset-bottom));
+  width: min(690px, 58vw); text-align: center; padding: 10px 18px; background: linear-gradient(90deg, transparent, rgba(0,0,0,.38), transparent);
+  font-size: clamp(15px, 1.4vw, 21px); text-shadow: 0 2px 7px #000;
+}
+.energy-panel { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(0,5,9,.52); backdrop-filter: blur(8px); }
+.panel-card {
+  width: min(560px, 90vw); border: 1px solid rgba(182,211,224,.3); background: rgba(9,18,24,.95);
+  box-shadow: 0 24px 80px rgba(0,0,0,.6); padding: 18px; border-radius: 12px;
+}
+.panel-card header { display: flex; justify-content: space-between; gap: 20px; padding: 5px 4px 16px; letter-spacing: .055em; }
+.panel-card header b { color: #ffc238; }
+.panel-card p { color: #8fa0ab; margin: 0 4px 16px; font-size: 14px; }
+#energySystems button {
+  width: 100%; display: flex; justify-content: space-between; padding: 15px; margin: 8px 0; text-align: left;
+  border-radius: 8px; border: 1px solid rgba(198,219,229,.16); background: #101d25;
+}
+#energySystems button.active { border-color: #ffc238; background: #18241f; box-shadow: inset 4px 0 #ffc238; }
+#energySystems button b { color: #ffc238; }
+.panel-card footer { display: flex; justify-content: flex-end; margin-top: 16px; }
+.panel-card footer button { border: 1px solid rgba(198,219,229,.2); background: #17242c; padding: 10px 18px; border-radius: 8px; }
+
+@media (max-width: 760px) {
+  .objective { min-width: 54vw; max-width: 70vw; font-size: 12px; padding-inline: 8px; }
+  .weather { top: 72px; font-size: 12px; min-width: 84px; }
+  .save-indicator { top: 18px; right: 14px; font-size: 9px; }
+  .joystick { width: 112px; height: 112px; left: 18px; bottom: 18px; }
+  .stick { width: 44px; height: 44px; left: calc(50% - 22px); top: calc(50% - 22px); }
+  .soyka-button { width: 104px; height: 104px; right: 18px; bottom: 18px; }
+  .soyka-dot { width: 36px; height: 36px; }
+  .soyka-button b { font-size: 12px; }
+  .interact { right: 136px; bottom: 46px; font-size: 12px; padding: 10px 12px; }
+  .dialogue { bottom: 12px; width: 58vw; font-size: 13px; }
+}
