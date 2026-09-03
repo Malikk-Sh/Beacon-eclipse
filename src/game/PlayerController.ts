@@ -11,7 +11,7 @@ export class PlayerController {
   private readonly yAxis = new THREE.Vector3(0, 1, 0);
   private readonly speed = 5.1;
 
-  constructor(private readonly physics: RAPIER.World, scene: THREE.Scene) {
+  constructor(private readonly physics: RAPIER.World, scene: THREE.Scene, spawn = new THREE.Vector3(0, 0, 24)) {
     const torso = new THREE.Mesh(
       new THREE.CapsuleGeometry(0.55, 1.15, 4, 8),
       new THREE.MeshStandardMaterial({ color: 0x18222b, roughness: 0.75 }),
@@ -29,7 +29,7 @@ export class PlayerController {
     scene.add(this.object);
 
     this.body = physics.createRigidBody(
-      RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(0, 1.05, 8),
+      RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(spawn.x, spawn.y + 1.05, spawn.z),
     );
     this.collider = physics.createCollider(RAPIER.ColliderDesc.capsule(0.5, 0.48), this.body);
     this.controller = physics.createCharacterController(0.05);
