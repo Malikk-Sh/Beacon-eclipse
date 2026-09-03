@@ -32,26 +32,59 @@ const input = new InputController(hud.joystick, hud.stick, renderer.domElement);
 const interactions = new InteractionSystem(hud.interactButton);
 
 let warehouseContacted = false;
+let lighthousePowered = false;
+let bridgeStarted = false;
 let yaw = 0;
 let pitch = -0.12;
 
 interactions.add({
+  id: 'lighthouse-panel',
+  label: '⚡ АВАРИЙНЫЙ ЩИТ — ЗАПУСТИТЬ',
+  position: world.landmarks.lighthousePanel,
+  radius: 2.5,
+  enabled: () => !lighthousePowered,
+  action: () => {
+    lighthousePowered = true;
+    world.unlockLighthouseDoor();
+    hud.setDialogue('МАРА: Есть питание. Дверь разблокирована. Спускайся к порту.');
+    hud.setObjective('ДОБРАТЬСЯ ДО ЭНЕРГОСТАНЦИИ');
+  },
+});
+
+interactions.add({
   id: 'energy-station',
   label: '⚡ РАСПРЕДЕЛИТЕЛЬ',
-  position: new THREE.Vector3(2, 0, -1.7),
+  position: world.landmarks.energyStation,
   radius: 4.3,
-  action: () => hud.openEnergy(),
+  action: () => {
+    hud.setObjective('РАСПРЕДЕЛИТЬ ЭНЕРГИЮ');
+    hud.openEnergy();
+  },
 });
 
 interactions.add({
   id: 'warehouse-radio',
   label: '◉ РАДИО — ОТВЕТИТЬ',
-  position: new THREE.Vector3(8, 0, -7.25),
+  position: world.landmarks.warehouse04,
   radius: 3.3,
   enabled: () => energy.isActive('warehouse') && !warehouseContacted,
   action: () => {
     warehouseContacted = true;
     hud.setDialogue('НИКА: ...эй? Здесь кто-нибудь есть? Я Ника.');
+    hud.setObjective('ВОССТАНОВИТЬ ПИТАНИЕ МОСТА');
+  },
+});
+
+interactions.add({
+  id: 'bridge-drive',
+  label: '⚡ ЗАПУСТИТЬ ПРИВОД МОСТА',
+  position: world.landmarks.bridgeStart,
+  radius: 3.6,
+  enabled: () => energy.isActive('bridge') && !bridgeStarted,
+  action: () => {
+    bridgeStarted = true;
+    hud.setObjective('ПЕРЕЙТИ МОСТ');
+    hud.setDialogue('МАРА: Путь открыт. Лев... нам нужно поговорить о Нике.');
   },
 });
 
@@ -61,10 +94,13 @@ energy.onInsufficientPower = () => {
 energy.onChange = () => {
   if (warehouseContacted && !energy.isActive('warehouse') && energy.isActive('bridge')) {
     hud.setDialogue('НИКА: Лев, подожди... Ты ведь вернёшься?');
+    hud.setObjective('ЗАПУСТИТЬ ПРИВОД МОСТА');
   } else if (energy.isActive('warehouse') && !warehouseContacted) {
     hud.setDialogue('МАРА: На Складе 04 появился слабый радиосигнал.');
+    hud.setObjective('ПРОВЕРИТЬ СКЛАД 04');
   } else if (energy.isActive('bridge')) {
-    hud.setDialogue('МАРА: Мост получает питание. Проверь привод.');
+    hud.setDialogue('МАРА: Мост получает питание. Доберись до привода.');
+    hud.setObjective('ЗАПУСТИТЬ ПРИВОД МОСТА');
   }
   hud.refreshEnergy();
 };
