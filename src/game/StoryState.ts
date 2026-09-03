@@ -17,6 +17,7 @@ export interface StoryProgress {
   warehouseContacted: boolean;
   warehouseFarewellPlayed: boolean;
   bridgeStarted: boolean;
+  memoryPrototypeSeen: boolean;
 }
 
 export interface StoryState {
@@ -45,6 +46,7 @@ export function createDefaultStoryState(): StoryState {
       warehouseContacted: false,
       warehouseFarewellPlayed: false,
       bridgeStarted: false,
+      memoryPrototypeSeen: false,
     },
     energy: [],
     responseProfile: {
