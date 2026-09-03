@@ -1,0 +1,115 @@
+.dialogue-shell {
+  position: absolute;
+  left: 50%;
+  bottom: max(28px, env(safe-area-inset-bottom));
+  width: min(760px, 62vw);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.dialogue-shell .dialogue {
+  position: static;
+  left: auto;
+  bottom: auto;
+  width: 100%;
+  transform: none;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 10px;
+  padding: 12px 20px;
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .5) 18%, rgba(0, 0, 0, .5) 82%, transparent);
+}
+
+.dialogue-speaker {
+  color: #efbd55;
+  font-size: .78em;
+  letter-spacing: .08em;
+  white-space: nowrap;
+}
+
+.dialogue-text {
+  color: #eef4f7;
+}
+
+.dialogue-choices {
+  width: min(610px, 92%);
+  margin: 0 auto 10px;
+  display: grid;
+  gap: 7px;
+  pointer-events: auto;
+}
+
+.dialogue-choices button {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid rgba(206, 225, 235, .25);
+  border-radius: 9px;
+  background: rgba(7, 14, 20, .78);
+  backdrop-filter: blur(10px);
+  text-align: left;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+.dialogue-choices button:hover,
+.dialogue-choices button:focus-visible {
+  border-color: rgba(255, 194, 56, .7);
+  background: rgba(23, 31, 34, .92);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.dialogue-choices small {
+  min-width: 24px;
+  color: #efbd55;
+  opacity: .85;
+}
+
+.choice-timer {
+  width: min(610px, 92%);
+  height: 2px;
+  margin: 0 auto 7px;
+  background: rgba(225, 235, 240, .12);
+  overflow: hidden;
+}
+
+.choice-timer span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform-origin: left center;
+  background: rgba(239, 189, 85, .9);
+  box-shadow: 0 0 9px rgba(239, 189, 85, .35);
+}
+
+@media (max-width: 760px) {
+  .dialogue-shell {
+    width: 62vw;
+    bottom: 10px;
+  }
+
+  .dialogue-shell .dialogue {
+    font-size: 13px;
+    padding: 8px 9px;
+    gap: 6px;
+  }
+
+  .dialogue-choices {
+    width: 100%;
+    gap: 5px;
+    margin-bottom: 6px;
+  }
+
+  .dialogue-choices button {
+    padding: 8px 9px;
+    font-size: 12px;
+  }
+
+  .choice-timer {
+    width: 100%;
+    margin-bottom: 5px;
+  }
+}
