@@ -1,11 +1,12 @@
 * { box-sizing: border-box; }
 html, body, #app, #game { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 body { background: #07111b; color: #e8eef3; font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; touch-action: none; }
-canvas { display: block; width: 100%; height: 100%; }
+canvas { display: block; width: 100%; height: 100%; touch-action: none; }
 button { font: inherit; color: inherit; }
+.hidden { display: none !important; }
 
 .hud { position: fixed; inset: 0; pointer-events: none; user-select: none; }
-.pause, .soyka-button, .interact, .energy-panel button { pointer-events: auto; }
+.pause, .soyka-button, .interact, .joystick, .energy-panel button { pointer-events: auto; }
 .pause {
   position: absolute; left: max(16px, env(safe-area-inset-left)); top: max(16px, env(safe-area-inset-top));
   width: 54px; height: 54px; border: 1px solid rgba(220,235,245,.32); border-radius: 12px;
@@ -28,9 +29,14 @@ button { font: inherit; color: inherit; }
 .joystick {
   position: absolute; left: max(34px, env(safe-area-inset-left)); bottom: max(32px, env(safe-area-inset-bottom));
   width: 142px; height: 142px; border-radius: 50%; border: 1px solid rgba(230,240,245,.34);
-  background: rgba(4,9,14,.34); backdrop-filter: blur(5px); pointer-events: auto;
+  background: rgba(4,9,14,.34); backdrop-filter: blur(5px); touch-action: none;
 }
-.stick { width: 52px; height: 52px; border: 1px solid rgba(230,240,245,.28); border-radius: 50%; position: absolute; inset: 0; margin: auto; }
+.stick {
+  width: 52px; height: 52px; border: 1px solid rgba(230,240,245,.34); border-radius: 50%;
+  position: absolute; left: calc(50% - 26px); top: calc(50% - 26px);
+  background: rgba(220,235,245,.06); box-shadow: inset 0 0 18px rgba(160,210,240,.05);
+  will-change: transform;
+}
 .soyka-button {
   position: absolute; right: max(34px, env(safe-area-inset-right)); bottom: max(30px, env(safe-area-inset-bottom));
   width: 132px; height: 132px; border-radius: 50%; border: 1px solid rgba(230,240,245,.34);
@@ -48,7 +54,6 @@ button { font: inherit; color: inherit; }
   font-size: clamp(15px, 1.4vw, 21px); text-shadow: 0 2px 7px #000;
 }
 .energy-panel { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; background: rgba(0,5,9,.52); backdrop-filter: blur(8px); }
-.energy-panel.hidden { display: none; }
 .panel-card {
   width: min(560px, 90vw); border: 1px solid rgba(182,211,224,.3); background: rgba(9,18,24,.95);
   box-shadow: 0 24px 80px rgba(0,0,0,.6); padding: 18px; border-radius: 12px;
@@ -56,12 +61,12 @@ button { font: inherit; color: inherit; }
 .panel-card header { display: flex; justify-content: space-between; gap: 20px; padding: 5px 4px 16px; letter-spacing: .055em; }
 .panel-card header b { color: #ffc238; }
 .panel-card p { color: #8fa0ab; margin: 0 4px 16px; font-size: 14px; }
-.panel-card > button {
+#energySystems button {
   width: 100%; display: flex; justify-content: space-between; padding: 15px; margin: 8px 0; text-align: left;
   border-radius: 8px; border: 1px solid rgba(198,219,229,.16); background: #101d25;
 }
-.panel-card > button.active { border-color: #ffc238; background: #18241f; box-shadow: inset 4px 0 #ffc238; }
-.panel-card > button b { color: #ffc238; }
+#energySystems button.active { border-color: #ffc238; background: #18241f; box-shadow: inset 4px 0 #ffc238; }
+#energySystems button b { color: #ffc238; }
 .panel-card footer { display: flex; justify-content: flex-end; margin-top: 16px; }
 .panel-card footer button { border: 1px solid rgba(198,219,229,.2); background: #17242c; padding: 10px 18px; border-radius: 8px; }
 
@@ -69,6 +74,7 @@ button { font: inherit; color: inherit; }
   .objective { min-width: 54vw; max-width: 70vw; font-size: 12px; padding-inline: 8px; }
   .weather { top: 72px; font-size: 12px; min-width: 84px; }
   .joystick { width: 112px; height: 112px; left: 18px; bottom: 18px; }
+  .stick { width: 44px; height: 44px; left: calc(50% - 22px); top: calc(50% - 22px); }
   .soyka-button { width: 104px; height: 104px; right: 18px; bottom: 18px; }
   .soyka-dot { width: 36px; height: 36px; }
   .soyka-button b { font-size: 12px; }
