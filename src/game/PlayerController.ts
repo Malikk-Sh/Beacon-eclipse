@@ -61,6 +61,20 @@ export class PlayerController {
     });
   }
 
+  setPosition(position: THREE.Vector3) {
+    this.body.setTranslation({
+      x: position.x,
+      y: position.y + 1.05,
+      z: position.z,
+    }, true);
+    this.body.setNextKinematicTranslation({
+      x: position.x,
+      y: position.y + 1.05,
+      z: position.z,
+    });
+    this.syncVisual();
+  }
+
   syncVisual() {
     const position = this.body.translation();
     this.object.position.set(position.x, position.y - 1.05, position.z);
