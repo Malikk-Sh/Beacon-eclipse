@@ -26,6 +26,14 @@ export class GameWorld {
   private lighthouseDoorCollider: RAPIER.Collider | null;
   private lighthouseDoorOpening = false;
 
+  private readonly bridgePivot = new THREE.Group();
+  private readonly bridgeBarrier: THREE.Mesh;
+  private bridgeBarrierCollider: RAPIER.Collider | null;
+  private bridgeDeckCollider: RAPIER.Collider | null = null;
+  private bridgeDeploying = false;
+  private bridgeReady = false;
+  private readonly bridgeRaisedAngle = Math.PI * 0.36;
+
   private readonly warehouseLight = new THREE.PointLight(0xffb45f, 0, 15, 2);
   private readonly portPowerLight = new THREE.PointLight(0xff9a4c, 0, 24, 2);
   private readonly pumpLight = new THREE.PointLight(0x67c9ff, 0, 15, 2);
@@ -61,6 +69,7 @@ export class GameWorld {
     this.scene.add(floor);
     this.physics.createCollider(RAPIER.ColliderDesc.cuboid(35, 0.1, 50).setTranslation(0, -0.1, -2));
 
+    // Lighthouse technical room.
     this.addBox(-4.1, 25.7, 0.35, 4.2, 16.4, 0x20272c);
     this.addBox(4.1, 25.7, 0.35, 4.2, 16.4, 0x20272c);
     this.addBox(0, 33.8, 8.55, 4.2, 0.35, 0x20272c);
@@ -80,6 +89,22 @@ export class GameWorld {
     const doorBody = this.physics.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 1.525, 17.65));
     this.lighthouseDoorCollider = this.physics.createCollider(RAPIER.ColliderDesc.cuboid(1.025, 1.525, 0.12), doorBody);
 
+    // Exterior approach: a narrow catwalk visually guides the player toward the port.
+    this.addBox(0, 11.6, 4.6, 0.18, 9.4, 0x202b32, 0.02);
+    this.addBox(-2.2, 11.6, 0.1, 0.95, 9.4, 0x29363d, 0.18);
+    this.addBox(2.2, 11.6, 0.1, 0.95, 9.4, 0x29363d, 0.18);
+    const tower = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.7, 3.25, 10, 12),
+      new THREE.MeshStandardMaterial({ color: 0x172128, roughness: 0.82, metalness: 0.18 }),
+    );
+    tower.position.set(0, 9, 28.5);
+    tower.castShadow = true;
+    this.scene.add(tower);
+    const beacon = new THREE.PointLight(0xeaf6ff, 7, 38, 2);
+    beacon.position.set(0, 14.2, 28.5);
+    this.scene.add(beacon);
+
+    // Port blockout: containers, Warehouse 04 and energy station.
     this.addBox(-9, -7, 5, 2.6, 12, 0x24313a);
     this.addBox(-3, -14, 8, 3.2, 4, 0x2b3438);
     this.addBox(8, -13, 13, 5.5, 9, 0x1e252a);
@@ -88,10 +113,28 @@ export class GameWorld {
       this.addBox(-11 + (i % 3) * 4, 4 + Math.floor(i / 3) * 5, 3.4, 2.4, 4.2, 0x27343d);
     }
 
-    this.addBox(0, -31, 7, 0.45, 28, 0x202a31, 0.1);
-    for (const side of [-3.2, 3.2]) {
-      for (let z = -19; z > -46; z -= 4) this.addBox(side, z, 0.12, 1.2, 0.12, 0x5d2522, 0.4);
-    }
+    // Drawbridge. It starts raised; a physical gate blocks the approach until deployment finishes.
+    this.bridgePivot.position.set(0, 0.1, -17.5);
+    this.bridgePivot.rotation.x = this.bridgeRaisedAngle;
+    const bridgeDeck = new THREE.Mesh(
+      new THREE.BoxGeometry(7, 0.45, 28),
+      new THREE.MeshStandardMaterial({ color: 0x202a31, roughness: 0.56, metalness: 0.52 }),
+    );
+    bridgeDeck.position.set(0, 0.225, -14);
+    bridgeDeck.castShadow = true;
+    bridgeDeck.receiveShadow = true;
+    this.bridgePivot.add(bridgeDeck);
+    this.scene.add(this.bridgePivot);
+
+    this.bridgeBarrier = new THREE.Mesh(
+      new THREE.BoxGeometry(7.1, 2.2, 0.34),
+      new THREE.MeshStandardMaterial({ color: 0x492523, roughness: 0.65, metalness: 0.5 }),
+    );
+    this.bridgeBarrier.position.set(0, 1.1, -18.2);
+    this.bridgeBarrier.castShadow = true;
+    this.scene.add(this.bridgeBarrier);
+    const barrierBody = this.physics.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 1.1, -18.2));
+    this.bridgeBarrierCollider = this.physics.createCollider(RAPIER.ColliderDesc.cuboid(3.55, 1.1, 0.17), barrierBody);
 
     this.warehouseLight.position.set(8, 3.2, -8.3);
     this.portPowerLight.position.set(-2, 4.5, -4);
@@ -130,6 +173,16 @@ export class GameWorld {
     if (immediate) this.lighthouseDoor.position.y = 5.2;
   }
 
+  startBridge(immediate = false) {
+    if (this.bridgeReady) return;
+    if (immediate) {
+      this.bridgePivot.rotation.x = 0;
+      this.finishBridgeDeployment();
+      return;
+    }
+    this.bridgeDeploying = true;
+  }
+
   setPowerState(system: EnergySystemName, enabled: boolean) {
     if (system === 'warehouse') {
       this.warehouseLightTarget = enabled ? 13 : 0;
@@ -150,6 +203,14 @@ export class GameWorld {
       this.lighthouseDoor.position.y = Math.min(5.2, this.lighthouseDoor.position.y + dt * 3.1);
     }
 
+    if (this.bridgeDeploying) {
+      this.bridgePivot.rotation.x = Math.max(0, this.bridgePivot.rotation.x - dt * 0.38);
+      if (this.bridgePivot.rotation.x <= 0.005) {
+        this.bridgePivot.rotation.x = 0;
+        this.finishBridgeDeployment();
+      }
+    }
+
     const lightBlend = 1 - Math.exp(-dt * 5.5);
     this.warehouseLight.intensity = THREE.MathUtils.lerp(this.warehouseLight.intensity, this.warehouseLightTarget, lightBlend);
     this.portPowerLight.intensity = THREE.MathUtils.lerp(this.portPowerLight.intensity, this.portLightTarget, lightBlend);
@@ -161,6 +222,20 @@ export class GameWorld {
       if (positions[i * 3 + 1] < 0) positions[i * 3 + 1] = 28;
     }
     this.rainGeometry.attributes.position.needsUpdate = true;
+  }
+
+  private finishBridgeDeployment() {
+    this.bridgeDeploying = false;
+    this.bridgeReady = true;
+    this.bridgeBarrier.visible = false;
+    if (this.bridgeBarrierCollider) {
+      this.physics.removeCollider(this.bridgeBarrierCollider, true);
+      this.bridgeBarrierCollider = null;
+    }
+    if (!this.bridgeDeckCollider) {
+      const body = this.physics.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0.325, -31.5));
+      this.bridgeDeckCollider = this.physics.createCollider(RAPIER.ColliderDesc.cuboid(3.5, 0.225, 14), body);
+    }
   }
 
   private addIndicator(x: number, y: number, z: number, onColor: number) {
