@@ -39,8 +39,21 @@ export class EnergySystem {
     return true;
   }
 
+  restore(systems: EnergySystemName[]) {
+    this.active.clear();
+    for (const system of systems) {
+      const definition = this.definitions.find((item) => item.id === system);
+      if (!definition || this.active.has(system)) continue;
+      if (this.used + definition.cost <= this.capacity) this.active.add(system);
+    }
+  }
+
   isActive(system: EnergySystemName) {
     return this.active.has(system);
+  }
+
+  get activeSystems(): EnergySystemName[] {
+    return [...this.active];
   }
 
   get used() {
