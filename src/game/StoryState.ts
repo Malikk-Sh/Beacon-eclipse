@@ -18,6 +18,9 @@ export interface StoryProgress {
   warehouseFarewellPlayed: boolean;
   bridgeStarted: boolean;
   memoryPrototypeSeen: boolean;
+  schoolEntered: boolean;
+  schoolReconstructionStarted: boolean;
+  schoolReconstructionCompleted: boolean;
 }
 
 export interface StoryState {
@@ -31,6 +34,7 @@ export interface StoryState {
   energy: EnergySystemName[];
   responseProfile: ResponseProfile;
   choices: Record<string, string>;
+  schoolEchoesHeard: string[];
 }
 
 export function createDefaultStoryState(): StoryState {
@@ -47,6 +51,9 @@ export function createDefaultStoryState(): StoryState {
       warehouseFarewellPlayed: false,
       bridgeStarted: false,
       memoryPrototypeSeen: false,
+      schoolEntered: false,
+      schoolReconstructionStarted: false,
+      schoolReconstructionCompleted: false,
     },
     energy: [],
     responseProfile: {
@@ -55,5 +62,6 @@ export function createDefaultStoryState(): StoryState {
       silent: 0,
     },
     choices: {},
+    schoolEchoesHeard: [],
   };
 }

@@ -9,6 +9,7 @@ import { InteractionSystem } from './game/InteractionSystem';
 import { MemoryReconstructionSystem } from './game/MemoryReconstructionSystem';
 import { PlayerController } from './game/PlayerController';
 import { SaveSystem } from './game/SaveSystem';
+import { SchoolReconstruction } from './game/SchoolReconstruction';
 import { SoykaController } from './game/SoykaController';
 import { createDefaultStoryState } from './game/StoryState';
 import { GameWorld } from './game/World';
@@ -29,6 +30,17 @@ const hud = new Hud(app, energy);
 const dialogue = new DialogueSystem(hud);
 const world = new GameWorld(physics);
 const memory = new MemoryReconstructionSystem(world.scene, new THREE.Vector3(-3, 0, -10.8));
+const school = new SchoolReconstruction(world.scene, physics, dialogue, {
+  onEchoHeard: (id) => {
+    if (!storyState.schoolEchoesHeard.includes(id)) storyState.schoolEchoesHeard.push(id);
+    persist(false);
+  },
+  onComplete: () => {
+    storyState.progress.schoolReconstructionCompleted = true;
+    hud.setObjective('ПРОДОЛЖИТЬ ЧЕРЕЗ ШКОЛУ');
+    persist(true);
+  },
+});
 const spawn = new THREE.Vector3(
   storyState.player.position.x,
   storyState.player.position.y,
@@ -41,6 +53,11 @@ if (storyState.progress.lighthousePowered) world.unlockLighthouseDoor(true);
 for (const system of energy.activeSystems) world.setPowerState(system, true);
 if (storyState.progress.bridgeStarted) world.startBridge(true);
 memory.setAnchorAvailable(energy.isActive('pumps') && !storyState.progress.memoryPrototypeSeen);
+school.restore(
+  storyState.progress.schoolReconstructionStarted,
+  storyState.schoolEchoesHeard,
+  storyState.progress.schoolReconstructionCompleted,
+);
 hud.refreshEnergy();
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -88,8 +105,14 @@ function syncObjective() {
   const progress = storyState.progress;
   if (!progress.lighthousePowered) {
     hud.setObjective('НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ');
+  } else if (progress.schoolReconstructionCompleted) {
+    hud.setObjective('ПРОДОЛЖИТЬ ЧЕРЕЗ ШКОЛУ');
+  } else if (progress.schoolReconstructionStarted) {
+    hud.setObjective('ИССЛЕДОВАТЬ РЕКОНСТРУКЦИЮ');
+  } else if (progress.schoolEntered) {
+    hud.setObjective('ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ');
   } else if (progress.bridgeStarted) {
-    hud.setObjective('ПЕРЕЙТИ МОСТ');
+    hud.setObjective('ДОЙТИ ДО ШКОЛЫ');
   } else if (progress.warehouseContacted && energy.isActive('bridge')) {
     hud.setObjective('ЗАПУСТИТЬ ПРИВОД МОСТА');
   } else if (progress.warehouseContacted) {
@@ -241,7 +264,7 @@ interactions.add({
   action: () => {
     storyState.progress.bridgeStarted = true;
     world.startBridge();
-    hud.setObjective('ПЕРЕЙТИ МОСТ');
+    hud.setObjective('ДОЙТИ ДО ШКОЛЫ');
     persist(true);
     dialogue.play([
       { kind: 'line', speaker: 'МАРА', text: 'Путь открыт.', duration: 2 },
@@ -250,6 +273,23 @@ interactions.add({
       { kind: 'line', speaker: 'ЛЕВ', text: 'Никой.', duration: 1.8 },
       { kind: 'line', speaker: 'МАРА', text: 'Лев...', duration: 2.5 },
     ]);
+  },
+});
+
+interactions.add({
+  id: 'school-reconstruction-node',
+  label: 'СОЙКА — ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ',
+  position: school.reconstructionNode,
+  radius: 3.1,
+  enabled: () => storyState.progress.bridgeStarted
+    && storyState.progress.schoolEntered
+    && !storyState.progress.schoolReconstructionStarted
+    && !dialogue.isBusy,
+  action: () => {
+    if (!school.start()) return;
+    storyState.progress.schoolReconstructionStarted = true;
+    hud.setObjective('ИССЛЕДОВАТЬ РЕКОНСТРУКЦИЮ');
+    persist(true);
   },
 });
 
@@ -416,10 +456,28 @@ function animate() {
   physics.step();
   player.syncVisual();
 
+  if (
+    storyState.progress.bridgeStarted
+    && !storyState.progress.schoolEntered
+    && player.position.distanceTo(school.entrance) < 4.8
+  ) {
+    storyState.progress.schoolEntered = true;
+    hud.setObjective('ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ');
+    persist(true);
+    if (!dialogue.isBusy) {
+      dialogue.play([
+        { kind: 'line', speaker: 'НИКА', text: 'Школа?..', duration: 1.8 },
+        { kind: 'line', speaker: 'МАРА', text: 'Старая городская школа. Здесь ещё жив архивный узел.', duration: 3.1 },
+        { kind: 'line', speaker: 'СОЙКА', text: 'Могу попробовать восстановить.', duration: 2.4 },
+      ]);
+    }
+  }
+
   dialogue.update(dt);
   interactions.update(player.position);
   soyka.update(player.position, elapsed, dt);
   memory.update(dt);
+  school.update(dt, player);
   world.update(dt);
 
   autosaveElapsed += dt;
