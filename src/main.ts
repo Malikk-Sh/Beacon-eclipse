@@ -37,6 +37,7 @@ const soyka = new SoykaController(world.scene);
 
 if (storyState.progress.lighthousePowered) world.unlockLighthouseDoor(true);
 for (const system of energy.activeSystems) world.setPowerState(system, true);
+if (storyState.progress.bridgeStarted) world.startBridge(true);
 hud.refreshEnergy();
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -209,6 +210,7 @@ interactions.add({
   enabled: () => energy.isActive('bridge') && !storyState.progress.bridgeStarted,
   action: () => {
     storyState.progress.bridgeStarted = true;
+    world.startBridge();
     hud.setObjective('ПЕРЕЙТИ МОСТ');
     persist(true);
     dialogue.play([
