@@ -35,6 +35,7 @@ const input = new InputController(hud.joystick, hud.stick, renderer.domElement);
 const interactions = new InteractionSystem(hud.interactButton);
 
 let warehouseContacted = false;
+let warehouseFarewellPlayed = false;
 let lighthousePowered = false;
 let bridgeStarted = false;
 let yaw = 0;
@@ -166,8 +167,16 @@ interactions.add({
 energy.onInsufficientPower = () => {
   dialogue.say('МАРА', 'Энергии недостаточно. Что-то придётся отключить.');
 };
-energy.onChange = () => {
-  if (warehouseContacted && !energy.isActive('warehouse') && energy.isActive('bridge')) {
+energy.onChange = (system, enabled) => {
+  world.setPowerState(system, enabled);
+
+  if (
+    warehouseContacted
+    && !warehouseFarewellPlayed
+    && !energy.isActive('warehouse')
+    && energy.isActive('bridge')
+  ) {
+    warehouseFarewellPlayed = true;
     dialogue.play([
       { kind: 'line', speaker: 'НИКА', text: 'Лев?', duration: 1.6 },
       { kind: 'line', speaker: 'НИКА', text: 'Подожди... Ты ведь вернёшься?', duration: 3 },
