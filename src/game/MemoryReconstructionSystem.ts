@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 
 export class MemoryReconstructionSystem {
+  readonly anchorPosition: THREE.Vector3;
   private readonly group = new THREE.Group();
   private readonly ghostMaterials: THREE.MeshBasicMaterial[] = [];
   private readonly warmLight = new THREE.PointLight(0xffb267, 0, 18, 2);
+  private readonly bracelet: THREE.Mesh;
   private readonly coldBackground: THREE.Color;
   private readonly coldFog: THREE.Color | null;
   private readonly warmBackground = new THREE.Color(0x2a1c16);
@@ -14,9 +16,25 @@ export class MemoryReconstructionSystem {
   private _active = false;
 
   constructor(private readonly scene: THREE.Scene, center: THREE.Vector3) {
+    this.anchorPosition = center.clone();
     this.group.position.copy(center);
     this.group.visible = false;
     this.scene.add(this.group);
+
+    this.bracelet = new THREE.Mesh(
+      new THREE.TorusGeometry(0.22, 0.055, 8, 20),
+      new THREE.MeshStandardMaterial({
+        color: 0x8f241f,
+        roughness: 0.48,
+        metalness: 0.08,
+        emissive: 0x2a0806,
+      }),
+    );
+    this.bracelet.position.copy(center).add(new THREE.Vector3(0, 0.08, 0));
+    this.bracelet.rotation.x = Math.PI / 2;
+    this.bracelet.rotation.z = 0.45;
+    this.bracelet.visible = false;
+    this.scene.add(this.bracelet);
 
     this.warmLight.position.copy(center).add(new THREE.Vector3(0, 2.8, 0));
     this.scene.add(this.warmLight);
@@ -53,6 +71,10 @@ export class MemoryReconstructionSystem {
     return this._active;
   }
 
+  setAnchorAvailable(available: boolean) {
+    this.bracelet.visible = available && !this._active;
+  }
+
   start(duration = 8, onComplete?: () => void) {
     if (this._active) return false;
     this._active = true;
@@ -60,6 +82,7 @@ export class MemoryReconstructionSystem {
     this.duration = Math.max(2, duration);
     this.completion = onComplete;
     this.group.visible = true;
+    this.bracelet.visible = false;
     return true;
   }
 
