@@ -7,21 +7,37 @@ import { EnergySystem } from './game/EnergySystem';
 import { InputController } from './game/InputController';
 import { InteractionSystem } from './game/InteractionSystem';
 import { PlayerController } from './game/PlayerController';
+import { SaveSystem } from './game/SaveSystem';
 import { SoykaController } from './game/SoykaController';
+import { createDefaultStoryState } from './game/StoryState';
 import { GameWorld } from './game/World';
 import { Hud } from './ui/Hud';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('Missing #app root');
 
+const saves = new SaveSystem();
+const loadedState = saves.load();
+const storyState = loadedState ?? createDefaultStoryState();
+
 await RAPIER.init();
 const physics = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
 const energy = new EnergySystem();
+energy.restore(storyState.energy);
 const hud = new Hud(app, energy);
 const dialogue = new DialogueSystem(hud);
 const world = new GameWorld(physics);
-const player = new PlayerController(physics, world.scene);
+const spawn = new THREE.Vector3(
+  storyState.player.position.x,
+  storyState.player.position.y,
+  storyState.player.position.z,
+);
+const player = new PlayerController(physics, world.scene, spawn);
 const soyka = new SoykaController(world.scene);
+
+if (storyState.progress.lighthousePowered) world.unlockLighthouseDoor(true);
+for (const system of energy.activeSystems) world.setPowerState(system, true);
+hud.refreshEnergy();
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.6));
@@ -34,33 +50,67 @@ const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 50
 const input = new InputController(hud.joystick, hud.stick, renderer.domElement);
 const interactions = new InteractionSystem(hud.interactButton);
 
-let warehouseContacted = false;
-let warehouseFarewellPlayed = false;
-let lighthousePowered = false;
-let bridgeStarted = false;
-let yaw = 0;
+let warehouseConversationActive = false;
+let warehouseFarewellActive = false;
+let yaw = storyState.player.yaw;
 let pitch = -0.12;
+let autosaveElapsed = 0;
 
-const responseProfile = {
-  direct: 0,
-  vulnerable: 0,
-  silent: 0,
-};
-
-function rememberResponse(kind: keyof typeof responseProfile) {
-  responseProfile[kind] += 1;
+function rememberResponse(kind: keyof typeof storyState.responseProfile) {
+  storyState.responseProfile[kind] += 1;
 }
+
+function rememberChoice(key: string, choice: string) {
+  storyState.choices[key] = choice;
+}
+
+function captureStoryState() {
+  storyState.player.position = {
+    x: player.position.x,
+    y: player.position.y,
+    z: player.position.z,
+  };
+  storyState.player.yaw = yaw;
+  storyState.energy = energy.activeSystems;
+  return storyState;
+}
+
+function persist(showIndicator = false) {
+  const saved = saves.save(captureStoryState());
+  if (saved && showIndicator) hud.flashAutosave();
+}
+
+function syncObjective() {
+  const progress = storyState.progress;
+  if (!progress.lighthousePowered) {
+    hud.setObjective('НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ');
+  } else if (progress.bridgeStarted) {
+    hud.setObjective('ПЕРЕЙТИ МОСТ');
+  } else if (progress.warehouseContacted && energy.isActive('bridge')) {
+    hud.setObjective('ЗАПУСТИТЬ ПРИВОД МОСТА');
+  } else if (progress.warehouseContacted) {
+    hud.setObjective('ВОССТАНОВИТЬ ПИТАНИЕ МОСТА');
+  } else if (energy.isActive('warehouse')) {
+    hud.setObjective('ПРОВЕРИТЬ СКЛАД 04');
+  } else {
+    hud.setObjective('ДОБРАТЬСЯ ДО ЭНЕРГОСТАНЦИИ');
+  }
+}
+
+syncObjective();
+if (loadedState) hud.hideDialogue();
 
 interactions.add({
   id: 'lighthouse-panel',
   label: '⚡ АВАРИЙНЫЙ ЩИТ — ЗАПУСТИТЬ',
   position: world.landmarks.lighthousePanel,
   radius: 2.5,
-  enabled: () => !lighthousePowered,
+  enabled: () => !storyState.progress.lighthousePowered,
   action: () => {
-    lighthousePowered = true;
+    storyState.progress.lighthousePowered = true;
     world.unlockLighthouseDoor();
     hud.setObjective('ДОБРАТЬСЯ ДО ЭНЕРГОСТАНЦИИ');
+    persist(true);
     dialogue.play([
       { kind: 'line', speaker: 'МАРА', text: 'Есть питание.', duration: 1.8 },
       { kind: 'line', speaker: 'МАРА', text: 'Дверь разблокирована. Спускайся к порту.', duration: 3.1 },
@@ -84,9 +134,11 @@ interactions.add({
   label: '◉ РАДИО — ОТВЕТИТЬ',
   position: world.landmarks.warehouse04,
   radius: 3.3,
-  enabled: () => energy.isActive('warehouse') && !warehouseContacted,
+  enabled: () => energy.isActive('warehouse')
+    && !storyState.progress.warehouseContacted
+    && !warehouseConversationActive,
   action: () => {
-    warehouseContacted = true;
+    warehouseConversationActive = true;
     dialogue.play([
       { kind: 'line', speaker: 'НЕИЗВЕСТНЫЙ ГОЛОС', text: '...эй?', duration: 1.7 },
       { kind: 'line', speaker: 'НЕИЗВЕСТНЫЙ ГОЛОС', text: 'Здесь кто-нибудь есть?', duration: 2.4 },
@@ -133,6 +185,7 @@ interactions.add({
           ],
         },
         onSelect: (choice) => {
+          rememberChoice('nikaRole', choice);
           if (choice === 'lost') rememberResponse('vulnerable');
           else if (choice === 'silence') rememberResponse('silent');
           else rememberResponse('direct');
@@ -140,7 +193,10 @@ interactions.add({
       },
       { kind: 'line', speaker: 'НИКА', text: 'Только не отключайся, ладно?', duration: 2.7 },
     ], () => {
+      warehouseConversationActive = false;
+      storyState.progress.warehouseContacted = true;
       hud.setObjective('ВОССТАНОВИТЬ ПИТАНИЕ МОСТА');
+      persist(true);
     });
   },
 });
@@ -150,10 +206,11 @@ interactions.add({
   label: '⚡ ЗАПУСТИТЬ ПРИВОД МОСТА',
   position: world.landmarks.bridgeStart,
   radius: 3.6,
-  enabled: () => energy.isActive('bridge') && !bridgeStarted,
+  enabled: () => energy.isActive('bridge') && !storyState.progress.bridgeStarted,
   action: () => {
-    bridgeStarted = true;
+    storyState.progress.bridgeStarted = true;
     hud.setObjective('ПЕРЕЙТИ МОСТ');
+    persist(true);
     dialogue.play([
       { kind: 'line', speaker: 'МАРА', text: 'Путь открыт.', duration: 2 },
       { kind: 'line', speaker: 'ЛЕВ', text: 'Я возвращаюсь за ней.', duration: 2.2 },
@@ -169,14 +226,16 @@ energy.onInsufficientPower = () => {
 };
 energy.onChange = (system, enabled) => {
   world.setPowerState(system, enabled);
+  storyState.energy = energy.activeSystems;
 
   if (
-    warehouseContacted
-    && !warehouseFarewellPlayed
+    storyState.progress.warehouseContacted
+    && !storyState.progress.warehouseFarewellPlayed
+    && !warehouseFarewellActive
     && !energy.isActive('warehouse')
     && energy.isActive('bridge')
   ) {
-    warehouseFarewellPlayed = true;
+    warehouseFarewellActive = true;
     dialogue.play([
       { kind: 'line', speaker: 'НИКА', text: 'Лев?', duration: 1.6 },
       { kind: 'line', speaker: 'НИКА', text: 'Подожди... Ты ведь вернёшься?', duration: 3 },
@@ -204,14 +263,18 @@ energy.onChange = (system, enabled) => {
           followUp: [{ kind: 'line', speaker: 'НИКА', text: 'Понятно.', duration: 2 }],
         },
         onSelect: (choice) => {
+          rememberChoice('nikaPromise', choice);
           if (choice === 'silence') rememberResponse('silent');
           else if (choice === 'honest') rememberResponse('vulnerable');
           else rememberResponse('direct');
+          storyState.progress.warehouseFarewellPlayed = true;
+          warehouseFarewellActive = false;
+          persist(true);
         },
       },
     ]);
     hud.setObjective('ЗАПУСТИТЬ ПРИВОД МОСТА');
-  } else if (energy.isActive('warehouse') && !warehouseContacted) {
+  } else if (energy.isActive('warehouse') && !storyState.progress.warehouseContacted) {
     dialogue.say('МАРА', 'На Складе 04 появился слабый радиосигнал.');
     hud.setObjective('ПРОВЕРИТЬ СКЛАД 04');
   } else if (energy.isActive('bridge')) {
@@ -219,6 +282,7 @@ energy.onChange = (system, enabled) => {
     hud.setObjective('ЗАПУСТИТЬ ПРИВОД МОСТА');
   }
   hud.refreshEnergy();
+  persist(false);
 };
 
 hud.soykaButton.addEventListener('click', () => {
@@ -226,68 +290,76 @@ hud.soykaButton.addEventListener('click', () => {
   dialogue.say('СОЙКА', 'Работаем.', 1.8);
 });
 
-dialogue.play([
-  { kind: 'line', speaker: 'МАРА', text: 'Лев?', duration: 1.8 },
-  { kind: 'line', speaker: 'МАРА', text: 'Лев, если ты меня слышишь, скажи что-нибудь.', duration: 3.2 },
-  {
-    kind: 'choice',
-    timeout: 5,
-    options: [
-      {
-        id: 'heard',
-        text: 'Я слышу.',
-        followUp: [
-          { kind: 'line', speaker: 'ЛЕВ', text: 'Я слышу.', duration: 1.5 },
-          { kind: 'line', speaker: 'МАРА', text: 'Хорошо. Значит, хотя бы связь работает.', duration: 2.8 },
-        ],
-      },
-    ],
-    silence: {
-      id: 'silence',
-      text: '',
-      followUp: [
-        { kind: 'line', speaker: 'МАРА', text: 'Ладно. Тогда просто слушай.', duration: 2.4 },
+if (!loadedState) {
+  dialogue.play([
+    { kind: 'line', speaker: 'МАРА', text: 'Лев?', duration: 1.8 },
+    { kind: 'line', speaker: 'МАРА', text: 'Лев, если ты меня слышишь, скажи что-нибудь.', duration: 3.2 },
+    {
+      kind: 'choice',
+      timeout: 5,
+      options: [
+        {
+          id: 'heard',
+          text: 'Я слышу.',
+          followUp: [
+            { kind: 'line', speaker: 'ЛЕВ', text: 'Я слышу.', duration: 1.5 },
+            { kind: 'line', speaker: 'МАРА', text: 'Хорошо. Значит, хотя бы связь работает.', duration: 2.8 },
+          ],
+        },
       ],
-    },
-    onSelect: (choice) => rememberResponse(choice === 'silence' ? 'silent' : 'direct'),
-  },
-  { kind: 'line', speaker: 'МАРА', text: 'Ты внутри северного маяка. Что ты помнишь?', duration: 3.3 },
-  {
-    kind: 'choice',
-    timeout: 6,
-    options: [
-      {
-        id: 'lighthouse',
-        text: 'Маяк.',
-        followUp: [{ kind: 'line', speaker: 'ЛЕВ', text: 'Маяк.', duration: 1.5 }],
-      },
-      {
-        id: 'mara',
-        text: 'Тебя.',
+      silence: {
+        id: 'silence',
+        text: '',
         followUp: [
-          { kind: 'line', speaker: 'ЛЕВ', text: 'Тебя.', duration: 1.5 },
-          { kind: 'line', speaker: 'МАРА', text: 'Хорошо.', duration: 2.2 },
+          { kind: 'line', speaker: 'МАРА', text: 'Ладно. Тогда просто слушай.', duration: 2.4 },
         ],
       },
-      {
-        id: 'nothing',
-        text: 'Почти ничего.',
-        followUp: [{ kind: 'line', speaker: 'ЛЕВ', text: 'Почти ничего.', duration: 1.8 }],
+      onSelect: (choice) => {
+        rememberChoice('introConnection', choice);
+        rememberResponse(choice === 'silence' ? 'silent' : 'direct');
+        persist(false);
       },
-    ],
-    silence: {
-      id: 'silence',
-      text: '',
-      followUp: [{ kind: 'line', speaker: 'МАРА', text: 'Не дави на себя. Сначала выберемся отсюда.', duration: 2.8 }],
     },
-    onSelect: (choice) => {
-      if (choice === 'nothing') rememberResponse('vulnerable');
-      else if (choice === 'silence') rememberResponse('silent');
-      else rememberResponse('direct');
+    { kind: 'line', speaker: 'МАРА', text: 'Ты внутри северного маяка. Что ты помнишь?', duration: 3.3 },
+    {
+      kind: 'choice',
+      timeout: 6,
+      options: [
+        {
+          id: 'lighthouse',
+          text: 'Маяк.',
+          followUp: [{ kind: 'line', speaker: 'ЛЕВ', text: 'Маяк.', duration: 1.5 }],
+        },
+        {
+          id: 'mara',
+          text: 'Тебя.',
+          followUp: [
+            { kind: 'line', speaker: 'ЛЕВ', text: 'Тебя.', duration: 1.5 },
+            { kind: 'line', speaker: 'МАРА', text: 'Хорошо.', duration: 2.2 },
+          ],
+        },
+        {
+          id: 'nothing',
+          text: 'Почти ничего.',
+          followUp: [{ kind: 'line', speaker: 'ЛЕВ', text: 'Почти ничего.', duration: 1.8 }],
+        },
+      ],
+      silence: {
+        id: 'silence',
+        text: '',
+        followUp: [{ kind: 'line', speaker: 'МАРА', text: 'Не дави на себя. Сначала выберемся отсюда.', duration: 2.8 }],
+      },
+      onSelect: (choice) => {
+        rememberChoice('introMemory', choice);
+        if (choice === 'nothing') rememberResponse('vulnerable');
+        else if (choice === 'silence') rememberResponse('silent');
+        else rememberResponse('direct');
+        persist(true);
+      },
     },
-  },
-  { kind: 'line', speaker: 'МАРА', text: 'Основное питание отключено. Найди аварийный щит.', duration: 3 },
-]);
+    { kind: 'line', speaker: 'МАРА', text: 'Основное питание отключено. Найди аварийный щит.', duration: 3 },
+  ]);
+}
 
 const clock = new THREE.Clock();
 const cameraTarget = new THREE.Vector3();
@@ -313,6 +385,12 @@ function animate() {
   soyka.update(player.position, elapsed, dt);
   world.update(dt);
 
+  autosaveElapsed += dt;
+  if (autosaveElapsed >= 5) {
+    autosaveElapsed = 0;
+    persist(false);
+  }
+
   cameraTarget.set(player.position.x, player.position.y + 1.45, player.position.z);
   cameraOffset.set(
     Math.sin(yaw) * Math.cos(pitch) * 7.5,
@@ -327,6 +405,10 @@ function animate() {
 
 animate();
 
+addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') persist(false);
+});
+addEventListener('pagehide', () => persist(false));
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
