@@ -6,6 +6,7 @@ import { DialogueSystem } from './game/DialogueSystem';
 import { EnergySystem } from './game/EnergySystem';
 import { InputController } from './game/InputController';
 import { InteractionSystem } from './game/InteractionSystem';
+import { MemoryReconstructionSystem } from './game/MemoryReconstructionSystem';
 import { PlayerController } from './game/PlayerController';
 import { SaveSystem } from './game/SaveSystem';
 import { SoykaController } from './game/SoykaController';
@@ -27,6 +28,7 @@ energy.restore(storyState.energy);
 const hud = new Hud(app, energy);
 const dialogue = new DialogueSystem(hud);
 const world = new GameWorld(physics);
+const memory = new MemoryReconstructionSystem(world.scene, new THREE.Vector3(-3, 0, -10.8));
 const spawn = new THREE.Vector3(
   storyState.player.position.x,
   storyState.player.position.y,
@@ -38,6 +40,7 @@ const soyka = new SoykaController(world.scene);
 if (storyState.progress.lighthousePowered) world.unlockLighthouseDoor(true);
 for (const system of energy.activeSystems) world.setPowerState(system, true);
 if (storyState.progress.bridgeStarted) world.startBridge(true);
+memory.setAnchorAvailable(energy.isActive('pumps') && !storyState.progress.memoryPrototypeSeen);
 hud.refreshEnergy();
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -127,6 +130,33 @@ interactions.add({
   action: () => {
     hud.setObjective('РАСПРЕДЕЛИТЬ ЭНЕРГИЮ');
     hud.openEnergy();
+  },
+});
+
+interactions.add({
+  id: 'memory-bracelet',
+  label: '◎ КРАСНЫЙ БРАСЛЕТ — КОСНУТЬСЯ',
+  position: memory.anchorPosition,
+  radius: 2.2,
+  enabled: () => energy.isActive('pumps')
+    && !storyState.progress.memoryPrototypeSeen
+    && !memory.active
+    && !dialogue.isBusy,
+  action: () => {
+    const started = memory.start(9.5, () => {
+      storyState.progress.memoryPrototypeSeen = true;
+      memory.setAnchorAvailable(false);
+      persist(true);
+    });
+    if (!started) return;
+
+    dialogue.play([
+      { kind: 'line', speaker: 'ЛЕВ', text: '...', duration: 1.2 },
+      { kind: 'line', speaker: 'ДЕТСКИЙ ГОЛОС', text: 'Папа, ну хватит!', duration: 2.2 },
+      { kind: 'line', speaker: 'ЛЕВ', text: 'Кто?..', duration: 1.7 },
+      { kind: 'line', speaker: 'МАРА', text: 'Лев? Что случилось?', duration: 2.4 },
+      { kind: 'line', speaker: 'ЛЕВ', text: 'Не знаю.', duration: 1.7 },
+    ]);
   },
 });
 
@@ -229,6 +259,10 @@ energy.onInsufficientPower = () => {
 energy.onChange = (system, enabled) => {
   world.setPowerState(system, enabled);
   storyState.energy = energy.activeSystems;
+
+  if (system === 'pumps') {
+    memory.setAnchorAvailable(enabled && !storyState.progress.memoryPrototypeSeen);
+  }
 
   if (
     storyState.progress.warehouseContacted
@@ -385,6 +419,7 @@ function animate() {
   dialogue.update(dt);
   interactions.update(player.position);
   soyka.update(player.position, elapsed, dt);
+  memory.update(dt);
   world.update(dt);
 
   autosaveElapsed += dt;

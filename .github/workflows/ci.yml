@@ -2,7 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [main, feature/vertical-slice]
+    branches:
+      - main
+      - 'feature/**'
   pull_request:
     branches: [main]
 
