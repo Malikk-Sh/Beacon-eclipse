@@ -61,7 +61,6 @@ export class GameWorld {
     this.scene.add(floor);
     this.physics.createCollider(RAPIER.ColliderDesc.cuboid(35, 0.1, 50).setTranslation(0, -0.1, -2));
 
-    // Lighthouse technical room. The camera remains inside the long room at spawn.
     this.addBox(-4.1, 25.7, 0.35, 4.2, 16.4, 0x20272c);
     this.addBox(4.1, 25.7, 0.35, 4.2, 16.4, 0x20272c);
     this.addBox(0, 33.8, 8.55, 4.2, 0.35, 0x20272c);
@@ -81,7 +80,6 @@ export class GameWorld {
     const doorBody = this.physics.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 1.525, 17.65));
     this.lighthouseDoorCollider = this.physics.createCollider(RAPIER.ColliderDesc.cuboid(1.025, 1.525, 0.12), doorBody);
 
-    // Port blockout: containers, Warehouse 04, energy station and bridge approach.
     this.addBox(-9, -7, 5, 2.6, 12, 0x24313a);
     this.addBox(-3, -14, 8, 3.2, 4, 0x2b3438);
     this.addBox(8, -13, 13, 5.5, 9, 0x1e252a);
@@ -95,7 +93,6 @@ export class GameWorld {
       for (let z = -19; z > -46; z -= 4) this.addBox(side, z, 0.12, 1.2, 0.12, 0x5d2522, 0.4);
     }
 
-    // Power-state lighting is intentionally sparse to remain mobile-friendly.
     this.warehouseLight.position.set(8, 3.2, -8.3);
     this.portPowerLight.position.set(-2, 4.5, -4);
     this.pumpLight.position.set(-3, 2.7, -12.2);
@@ -124,13 +121,13 @@ export class GameWorld {
     ));
   }
 
-  unlockLighthouseDoor() {
-    if (this.lighthouseDoorOpening) return;
-    this.lighthouseDoorOpening = true;
+  unlockLighthouseDoor(immediate = false) {
+    if (!this.lighthouseDoorOpening) this.lighthouseDoorOpening = true;
     if (this.lighthouseDoorCollider) {
       this.physics.removeCollider(this.lighthouseDoorCollider, true);
       this.lighthouseDoorCollider = null;
     }
+    if (immediate) this.lighthouseDoor.position.y = 5.2;
   }
 
   setPowerState(system: EnergySystemName, enabled: boolean) {
