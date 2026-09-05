@@ -12,7 +12,7 @@ export class WeatherSystem {
   private lightningTimer = 8 + Math.random() * 10;
   private lightningEnergy = 0;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, private readonly onLightning?: () => void) {
     for (let i = 0; i < this.maxStreaks; i++) this.resetStreak(i, Math.random() * 28);
 
     const positionAttribute = new THREE.BufferAttribute(this.positions, 3);
@@ -61,6 +61,7 @@ export class WeatherSystem {
     if (this.lightningTimer <= 0) {
       this.lightningEnergy = 1;
       this.lightningTimer = 8 + Math.random() * 15;
+      this.onLightning?.();
     }
     this.lightningEnergy = Math.max(0, this.lightningEnergy - dt * 7.5);
     const pulse = this.lightningEnergy * this.lightningEnergy;
