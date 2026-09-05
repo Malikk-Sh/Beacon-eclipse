@@ -1,3 +1,5 @@
+import { audioSystem } from '../game/AudioSystem';
+
 export class VerticalSliceEnding {
   private readonly overlay: HTMLDivElement;
 
@@ -9,6 +11,7 @@ export class VerticalSliceEnding {
   }
 
   show(): void {
+    audioSystem.fadeOut(1.4);
     this.overlay.setAttribute('aria-hidden', 'false');
     this.overlay.classList.add('visible');
   }
