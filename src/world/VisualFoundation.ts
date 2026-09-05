@@ -7,12 +7,12 @@ import { WorldDressing } from './WorldDressing';
 export class VisualFoundation {
   private readonly weather: WeatherSystem;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, bridgeRoot: THREE.Group) {
     this.removePrototypeEnvironment(scene);
 
     const materials = new MaterialLibrary();
     new LightingRig(scene);
-    new WorldDressing(scene, materials);
+    new WorldDressing(scene, materials, bridgeRoot);
     this.weather = new WeatherSystem(scene);
   }
 
