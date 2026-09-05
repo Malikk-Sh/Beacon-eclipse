@@ -4,6 +4,8 @@ const CORE_URLS = [
   '/',
   '/manifest.webmanifest',
   '/icons/beacon-eclipse.svg',
+  '/icons/beacon-eclipse-192.png',
+  '/icons/beacon-eclipse-512.png',
   '/assets/DRN_Soyka.gltf',
 ];
 
