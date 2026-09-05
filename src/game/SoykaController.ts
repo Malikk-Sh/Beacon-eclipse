@@ -1,25 +1,19 @@
 import * as THREE from 'three';
+import { AssetManager, type ModelInstance } from '../world/AssetManager';
+
+const SOYKA_MODEL_URL = '/assets/DRN_Soyka.glb';
 
 export class SoykaController {
   readonly object = new THREE.Group();
-  private readonly eye: THREE.Mesh;
+  private eye: THREE.Object3D | null = null;
+  private readonly eyeBaseScale = new THREE.Vector3(1, 1, 1);
+  private model: ModelInstance | null = null;
   private pulse = 0;
 
-  constructor(scene: THREE.Scene) {
-    const body = new THREE.Mesh(
-      new THREE.SphereGeometry(0.48, 16, 12),
-      new THREE.MeshStandardMaterial({ color: 0x2f363b, roughness: 0.45, metalness: 0.8 }),
-    );
-    body.castShadow = true;
-    this.object.add(body);
-
-    this.eye = new THREE.Mesh(
-      new THREE.SphereGeometry(0.13, 12, 8),
-      new THREE.MeshBasicMaterial({ color: 0x4fc3ff }),
-    );
-    this.eye.position.z = -0.46;
-    this.object.add(this.eye);
+  constructor(scene: THREE.Scene, private readonly assets: AssetManager) {
+    this.createProceduralFallback();
     scene.add(this.object);
+    void this.loadHeroModel();
   }
 
   signal() {
@@ -33,13 +27,59 @@ export class SoykaController {
       target.z + 0.15,
     );
     this.object.position.lerp(desired, 0.12);
-    this.object.rotation.y = elapsed * 0.35;
+    this.object.rotation.y = Math.sin(elapsed * 0.45) * 0.18;
+    this.object.rotation.z = Math.sin(elapsed * 0.72) * 0.025;
 
-    if (this.pulse > 0) {
-      this.eye.scale.setScalar(1 + this.pulse * 0.7);
-      this.pulse = Math.max(0, this.pulse - dt * 2.5);
-    } else {
-      this.eye.scale.setScalar(1);
+    if (!this.eye) return;
+    const pulseScale = this.pulse > 0 ? 1 + this.pulse * 0.55 : 1;
+    this.eye.scale.copy(this.eyeBaseScale).multiplyScalar(pulseScale);
+    this.pulse = Math.max(0, this.pulse - dt * 2.5);
+  }
+
+  private createProceduralFallback() {
+    const body = new THREE.Mesh(
+      new THREE.SphereGeometry(0.48, 16, 12),
+      new THREE.MeshStandardMaterial({ color: 0x2f363b, roughness: 0.45, metalness: 0.8 }),
+    );
+    body.castShadow = true;
+    this.object.add(body);
+
+    const eye = new THREE.Mesh(
+      new THREE.SphereGeometry(0.13, 12, 8),
+      new THREE.MeshBasicMaterial({ color: 0x4fc3ff }),
+    );
+    eye.position.z = -0.46;
+    this.object.add(eye);
+    this.eye = eye;
+    this.eyeBaseScale.copy(eye.scale);
+  }
+
+  private async loadHeroModel() {
+    const model = await this.assets.instantiate(SOYKA_MODEL_URL, {}, 'СОЙКА');
+    if (model.fallback) {
+      this.assets.disposeInstance(model);
+      return;
     }
+
+    this.disposeProceduralFallback();
+    this.model = model;
+    this.object.add(model.root);
+
+    const eye = model.root.getObjectByName('eye');
+    this.eye = eye ?? null;
+    if (this.eye) this.eyeBaseScale.copy(this.eye.scale);
+  }
+
+  private disposeProceduralFallback() {
+    for (const child of [...this.object.children]) {
+      child.traverse((object) => {
+        if (!(object instanceof THREE.Mesh)) return;
+        object.geometry.dispose();
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach((material) => material.dispose());
+      });
+      this.object.remove(child);
+    }
+    this.eye = null;
   }
 }
