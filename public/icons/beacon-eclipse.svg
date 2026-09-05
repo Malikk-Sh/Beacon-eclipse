@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Пока город помнит">
+  <rect width="512" height="512" rx="104" fill="#06111a"/>
+  <path d="M0 372C88 342 148 354 215 377c72 25 151 28 297-18v153H0z" fill="#0d2633"/>
+  <path d="M187 365h138l-19-202H206z" fill="#24343c" stroke="#7f99a5" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M211 159h90l-12-43h-66z" fill="#151f25" stroke="#7f99a5" stroke-width="9"/>
+  <rect x="223" y="73" width="66" height="52" rx="8" fill="#18252d" stroke="#7f99a5" stroke-width="9"/>
+  <rect x="236" y="85" width="40" height="26" rx="4" fill="#ffc66d"/>
+  <path d="M276 98 486 37l-18 98z" fill="#ffc66d" opacity=".72"/>
+  <path d="M236 98 42 46l16 91z" fill="#8dd7f7" opacity=".18"/>
+  <path d="M179 366h154" stroke="#d06f43" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="387" cy="343" r="8" fill="#df6650"/>
+  <circle cx="410" cy="332" r="5" fill="#df6650" opacity=".72"/>
+</svg>
