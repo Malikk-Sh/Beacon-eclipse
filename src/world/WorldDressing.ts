@@ -1,8 +1,11 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from './MaterialLibrary';
+import { BridgeArea } from './areas/BridgeArea';
+import { LighthouseArea } from './areas/LighthouseArea';
+import { PortArea } from './areas/PortArea';
 
 export class WorldDressing {
-  constructor(scene: THREE.Scene, materials: MaterialLibrary) {
+  constructor(scene: THREE.Scene, materials: MaterialLibrary, bridgeRoot: THREE.Group) {
     this.addWetPatch(scene, materials, -4, 13, 5, 9);
     this.addWetPatch(scene, materials, 5, 1, 8, 7);
     this.addWetPatch(scene, materials, -6, -9, 9, 10);
@@ -12,54 +15,10 @@ export class WorldDressing {
     this.addWaterStrip(scene, materials, -28, -8, 12, 78);
     this.addWaterStrip(scene, materials, 28, -8, 12, 78);
 
-    this.addLighthouseSilhouette(scene, materials);
-    this.addPortDressing(scene, materials);
+    new LighthouseArea(scene, materials);
+    new PortArea(scene, materials);
+    new BridgeArea(scene, materials, bridgeRoot);
     this.addDistantCity(scene, materials);
-  }
-
-  private addLighthouseSilhouette(scene: THREE.Scene, materials: MaterialLibrary): void {
-    const balcony = new THREE.Mesh(new THREE.TorusGeometry(3.25, 0.1, 6, 32), materials.oldSteel);
-    balcony.rotation.x = Math.PI / 2;
-    balcony.position.set(0, 13.1, 28.5);
-    balcony.castShadow = true;
-    scene.add(balcony);
-
-    const postGeometry = new THREE.CylinderGeometry(0.045, 0.045, 0.9, 6);
-    const posts = new THREE.InstancedMesh(postGeometry, materials.oldSteel, 12);
-    const matrix = new THREE.Matrix4();
-    for (let i = 0; i < 12; i++) {
-      const angle = (i / 12) * Math.PI * 2;
-      matrix.makeTranslation(Math.cos(angle) * 3.2, 13.5, 28.5 + Math.sin(angle) * 3.2);
-      posts.setMatrixAt(i, matrix);
-    }
-    posts.castShadow = true;
-    scene.add(posts);
-
-    const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.9, 0.75, 16), materials.beaconHousing);
-    housing.position.set(0, 14.25, 28.5);
-    housing.castShadow = true;
-    scene.add(housing);
-  }
-
-  private addPortDressing(scene: THREE.Scene, materials: MaterialLibrary): void {
-    const bollardGeometry = new THREE.CylinderGeometry(0.18, 0.24, 0.72, 8);
-    const bollards = new THREE.InstancedMesh(bollardGeometry, materials.oldSteel, 8);
-    const matrix = new THREE.Matrix4();
-    const placements = [
-      [-7, 0.36, -2], [-7, 0.36, -10], [7, 0.36, -2], [7, 0.36, -10],
-      [-5, 0.36, -17], [5, 0.36, -17], [-4.5, 0.36, -31], [4.5, 0.36, -31],
-    ] as const;
-
-    placements.forEach(([x, y, z], index) => {
-      matrix.makeTranslation(x, y, z);
-      bollards.setMatrixAt(index, matrix);
-    });
-    bollards.castShadow = true;
-    scene.add(bollards);
-
-    this.addVisualBox(scene, materials.oldSteel, 2, 2.9, -2.7, 5.4, 0.16, 0.32);
-    this.addVisualBox(scene, materials.oldSteel, 8, 5.65, -13, 13.5, 0.24, 9.4);
-    this.addVisualBox(scene, materials.oldSteel, -3, 3.35, -14, 8.4, 0.18, 4.35);
   }
 
   private addDistantCity(scene: THREE.Scene, materials: MaterialLibrary): void {
@@ -111,22 +70,5 @@ export class WorldDressing {
     water.position.set(x, 0.018, z);
     water.receiveShadow = true;
     scene.add(water);
-  }
-
-  private addVisualBox(
-    scene: THREE.Scene,
-    material: THREE.Material,
-    x: number,
-    y: number,
-    z: number,
-    sx: number,
-    sy: number,
-    sz: number,
-  ): void {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
-    mesh.position.set(x, y, z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    scene.add(mesh);
   }
 }
