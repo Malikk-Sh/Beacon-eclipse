@@ -57,7 +57,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  event.respondWith(staleWhileRevalidate(request));
+  event.respondWith(staleWhileRevalidate(request, event));
 });
 
 async function networkFirstNavigation(request) {
@@ -71,7 +71,7 @@ async function networkFirstNavigation(request) {
   }
 }
 
-async function staleWhileRevalidate(request) {
+async function staleWhileRevalidate(request, event) {
   const cache = await caches.open(CACHE_NAME);
   const cached = await cache.match(request);
   const network = fetch(request)
@@ -82,13 +82,9 @@ async function staleWhileRevalidate(request) {
     .catch(() => null);
 
   if (cached) {
-    eventWaitUntilSafe(network);
+    event.waitUntil(network.then(() => undefined));
     return cached;
   }
 
   return (await network) || Response.error();
-}
-
-function eventWaitUntilSafe(promise) {
-  promise.catch(() => undefined);
 }
