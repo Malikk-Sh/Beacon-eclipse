@@ -1,15 +1,7 @@
 import * as THREE from 'three';
+import type { EnergySystemName } from './EnergySystem';
 
-export interface AudioFrameState {
-  playerPosition: THREE.Vector3;
-  soykaPosition: THREE.Vector3;
-  moving: boolean;
-  bridgeStarted: boolean;
-  bridgePowered: boolean;
-  warehousePowered: boolean;
-  portLightsPowered: boolean;
-  pumpsPowered: boolean;
-}
+const SETTINGS_KEY = 'beacon-eclipse.settings.v1';
 
 export class AudioSystem {
   private context: AudioContext | null = null;
@@ -28,12 +20,22 @@ export class AudioSystem {
   private volume: number;
   private footstepTimer = 0;
   private creakTimer = 5 + Math.random() * 5;
+  private moving = false;
+  private bridgeStarted = false;
+  private readonly playerPosition = new THREE.Vector3();
+  private readonly soykaPosition = new THREE.Vector3();
+  private readonly powerState: Record<EnergySystemName, boolean> = {
+    bridge: false,
+    warehouse: false,
+    lights: false,
+    pumps: false,
+  };
 
   private readonly unlockFromGesture = () => {
     void this.unlock();
   };
 
-  constructor(volume: number) {
+  constructor(volume = readInitialSfxVolume()) {
     this.volume = THREE.MathUtils.clamp(volume, 0, 1);
     window.addEventListener('pointerdown', this.unlockFromGesture, { capture: true });
     window.addEventListener('keydown', this.unlockFromGesture, { capture: true });
@@ -58,6 +60,23 @@ export class AudioSystem {
   setPaused(paused: boolean): void {
     this.paused = paused;
     this.applyMasterLevel(0.12);
+  }
+
+  setPlayerState(position: THREE.Vector3, moving: boolean): void {
+    this.playerPosition.copy(position);
+    this.moving = moving;
+  }
+
+  setSoykaPosition(position: THREE.Vector3): void {
+    this.soykaPosition.copy(position);
+  }
+
+  setPowerState(system: EnergySystemName, enabled: boolean): void {
+    this.powerState[system] = enabled;
+  }
+
+  setBridgeStarted(started: boolean): void {
+    this.bridgeStarted = started;
   }
 
   fadeOut(seconds = 1.4): void {
@@ -104,35 +123,32 @@ export class AudioSystem {
     rumble.stop(now + 2.75);
   }
 
-  update(dt: number, state: AudioFrameState): void {
+  update(dt: number): void {
     const context = this.context;
     if (!context || context.state !== 'running') return;
 
     const now = context.currentTime;
-    this.setListenerPosition(context.listener, state.playerPosition, now);
-    this.setPannerPosition(this.motorPanner, state.soykaPosition, now);
+    this.setListenerPosition(context.listener, this.playerPosition, now);
+    this.setPannerPosition(this.motorPanner, this.soykaPosition, now);
 
     this.setGainTarget(this.rainGain, 0.17, now, 0.35);
     this.setGainTarget(this.windGain, 0.055, now, 0.7);
     this.setGainTarget(this.waterGain, 0.038, now, 1.1);
 
-    const poweredSystems = Number(state.bridgePowered)
-      + Number(state.warehousePowered)
-      + Number(state.portLightsPowered)
-      + Number(state.pumpsPowered);
+    const poweredSystems = Object.values(this.powerState).filter(Boolean).length;
     this.setGainTarget(this.humGain, poweredSystems * 0.008, now, 0.3);
 
-    const warehouseDistance = this.planarDistance(state.playerPosition, 8, -7.25);
+    const warehouseDistance = this.planarDistance(this.playerPosition, 8, -7.25);
     const warehouseProximity = THREE.MathUtils.clamp(1 - warehouseDistance / 18, 0, 1);
     this.setGainTarget(
       this.radioGain,
-      state.warehousePowered ? warehouseProximity * 0.075 : 0,
+      this.powerState.warehouse ? warehouseProximity * 0.075 : 0,
       now,
       0.22,
     );
     this.setGainTarget(this.motorGain, 0.045, now, 0.15);
 
-    if (state.moving) {
+    if (this.moving) {
       this.footstepTimer -= dt;
       if (this.footstepTimer <= 0) {
         this.playFootstep();
@@ -142,8 +158,8 @@ export class AudioSystem {
       this.footstepTimer = Math.min(this.footstepTimer, 0.08);
     }
 
-    const bridgeDistance = this.planarDistance(state.playerPosition, 0, -31.5);
-    if (state.bridgeStarted && bridgeDistance < 20) {
+    const bridgeDistance = this.planarDistance(this.playerPosition, 0, -31.5);
+    if (this.bridgeStarted && bridgeDistance < 20) {
       this.creakTimer -= dt;
       if (this.creakTimer <= 0) {
         this.playMetalCreak();
@@ -333,3 +349,18 @@ export class AudioSystem {
     return Math.hypot(position.x - x, position.z - z);
   }
 }
+
+function readInitialSfxVolume(): number {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return 0.9;
+    const parsed = JSON.parse(raw) as { sfxVolume?: unknown };
+    return typeof parsed.sfxVolume === 'number' && Number.isFinite(parsed.sfxVolume)
+      ? THREE.MathUtils.clamp(parsed.sfxVolume, 0, 1)
+      : 0.9;
+  } catch {
+    return 0.9;
+  }
+}
+
+export const audioSystem = new AudioSystem();
