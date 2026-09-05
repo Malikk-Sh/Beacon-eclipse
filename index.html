@@ -16,5 +16,9 @@
   <body>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
+    <script type="module">
+      import { PwaController } from '/src/game/PwaController.ts';
+      new PwaController().register();
+    </script>
   </body>
 </html>
