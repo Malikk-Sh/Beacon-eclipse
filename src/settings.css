@@ -66,7 +66,8 @@
 button.settings-row { cursor: pointer; }
 button.settings-row:hover:not(:disabled),
 button.settings-row:focus-visible,
-.settings-quality:focus-within {
+.settings-quality:focus-within,
+.settings-volume:focus-within {
   border-color: rgba(255, 194, 56, 0.62);
   outline: none;
 }
@@ -92,6 +93,24 @@ button.settings-row:focus-visible,
   font: inherit;
   font-size: 12px;
   letter-spacing: 0.055em;
+}
+
+.settings-volume-control {
+  display: grid;
+  grid-template-columns: minmax(100px, 170px) 48px;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-volume input[type='range'] {
+  width: 100%;
+  accent-color: #ffc238;
+  cursor: pointer;
+}
+
+.settings-volume b {
+  min-width: 48px;
+  text-align: right;
 }
 
 .settings-actions {
@@ -144,6 +163,11 @@ button.settings-row:focus-visible,
     font-size: 12px;
   }
 
+  .settings-volume-control {
+    grid-template-columns: minmax(84px, 132px) 44px;
+    gap: 8px;
+  }
+
   .settings-actions {
     margin-top: 16px;
   }
@@ -172,6 +196,10 @@ button.settings-row:focus-visible,
   .settings-row {
     min-height: 46px;
     padding-block: 9px;
+  }
+
+  .settings-volume {
+    grid-column: 1 / -1;
   }
 
   .settings-actions {
