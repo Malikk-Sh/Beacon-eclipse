@@ -5,12 +5,13 @@ const SOYKA_MODEL_URL = '/assets/DRN_Soyka.glb';
 
 export class SoykaController {
   readonly object = new THREE.Group();
+  private readonly assets = new AssetManager();
   private eye: THREE.Object3D | null = null;
   private readonly eyeBaseScale = new THREE.Vector3(1, 1, 1);
   private model: ModelInstance | null = null;
   private pulse = 0;
 
-  constructor(scene: THREE.Scene, private readonly assets: AssetManager) {
+  constructor(scene: THREE.Scene) {
     this.createProceduralFallback();
     scene.add(this.object);
     void this.loadHeroModel();
