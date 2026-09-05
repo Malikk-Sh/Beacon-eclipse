@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { AssetManager, type ModelInstance } from '../world/AssetManager';
+import { audioSystem } from './AudioSystem';
 
 const SOYKA_MODEL_URL = '/assets/DRN_Soyka.gltf';
 
@@ -30,6 +31,7 @@ export class SoykaController {
     this.object.position.lerp(desired, 0.12);
     this.object.rotation.y = Math.sin(elapsed * 0.45) * 0.18;
     this.object.rotation.z = Math.sin(elapsed * 0.72) * 0.025;
+    audioSystem.setSoykaPosition(this.object.position);
 
     if (!this.eye) return;
     const pulseScale = this.pulse > 0 ? 1 + this.pulse * 0.55 : 1;
