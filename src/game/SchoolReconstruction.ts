@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { SchoolArea } from '../world/areas/SchoolArea';
 import type { DialogueSystem } from './DialogueSystem';
 import type { PlayerController } from './PlayerController';
+import { SchoolPromiseScene } from './SchoolPromiseScene';
 
 type MemoryCorruption = 'head-gap' | 'offset-arm' | 'fragmented';
 
@@ -25,21 +26,25 @@ interface SchoolEchoRuntime extends SchoolEchoDefinition {
 interface SchoolReconstructionCallbacks {
   onEchoHeard?: (id: string) => void;
   onComplete?: () => void;
+  onPromiseSceneComplete?: () => void;
 }
 
 export class SchoolReconstruction {
   readonly entrance = new THREE.Vector3(0, 0, -60);
   readonly reconstructionNode = new THREE.Vector3(0, 0, -73);
+  readonly promiseAnchor: THREE.Vector3;
 
   private readonly root = new THREE.Group();
   private readonly memoryRoot = new THREE.Group();
   private readonly echoes: SchoolEchoRuntime[] = [];
   private readonly memoryLight = new THREE.PointLight(0xffbd75, 0, 28, 2);
+  private readonly promiseScene: SchoolPromiseScene;
   private active = false;
   private strength = 0;
   private targetStrength = 0;
   private completionFired = false;
   private memoryElapsed = 0;
+  private cutAfterPromise = false;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -54,6 +59,8 @@ export class SchoolReconstruction {
 
     new SchoolArea(this.root, this.physics, this.entrance);
     this.buildMemorySchool();
+    this.promiseScene = new SchoolPromiseScene(this.memoryRoot, this.dialogue, this.entrance);
+    this.promiseAnchor = this.promiseScene.anchorPosition.clone();
 
     this.memoryLight.position.copy(this.entrance).add(new THREE.Vector3(0, 3.4, -13));
     this.scene.add(this.memoryLight);
@@ -75,16 +82,35 @@ export class SchoolReconstruction {
     return true;
   }
 
-  restore(active: boolean, heardIds: string[], completed: boolean) {
+  restore(active: boolean, heardIds: string[], completed: boolean, promiseSeen = false) {
     for (const echo of this.echoes) echo.heard = heardIds.includes(echo.id);
     this.completionFired = completed;
-    if (active) {
+    this.promiseScene.restore(promiseSeen);
+
+    if (active && !promiseSeen) {
       this.active = true;
       this.strength = 1;
       this.targetStrength = 1;
       this.memoryRoot.visible = true;
       this.memoryLight.intensity = 10;
+    } else if (promiseSeen) {
+      this.active = false;
+      this.strength = 0;
+      this.targetStrength = 0;
+      this.memoryRoot.visible = false;
+      this.memoryLight.intensity = 0;
     }
+  }
+
+  playPromiseScene(): boolean {
+    if (!this.active || !this.completionFired || this.strength < 0.7) return false;
+
+    return this.promiseScene.play(() => {
+      this.active = false;
+      this.targetStrength = 0;
+      this.cutAfterPromise = true;
+      this.callbacks.onPromiseSceneComplete?.();
+    });
   }
 
   update(dt: number, player: PlayerController) {
@@ -106,6 +132,11 @@ export class SchoolReconstruction {
         : 1;
       material.opacity = Math.min(baseOpacity, this.strength * baseOpacity * flicker);
     });
+
+    if (this.cutAfterPromise && this.strength < 0.03) {
+      this.memoryRoot.visible = false;
+      this.cutAfterPromise = false;
+    }
 
     if (!this.active || this.strength < 0.55) return;
 
