@@ -5,6 +5,7 @@ export class SchoolPromiseScene {
   readonly anchorPosition: THREE.Vector3;
   readonly root = new THREE.Group();
 
+  private unlocked = false;
   private played = false;
 
   constructor(
@@ -21,10 +22,16 @@ export class SchoolPromiseScene {
     this.buildVignette();
   }
 
-  play(onComplete: () => void): boolean {
-    if (this.played || this.dialogue.isBusy) return false;
-    this.played = true;
+  unlock(): void {
+    if (this.played) return;
+    this.unlocked = true;
     this.root.visible = true;
+  }
+
+  play(onComplete: () => void): boolean {
+    if (!this.unlocked || this.played || this.dialogue.isBusy) return false;
+    this.played = true;
+    this.unlocked = false;
 
     this.dialogue.play([
       { kind: 'line', speaker: 'ДЕВОЧКА', text: 'Ты опять уйдёшь, когда позвонят?', duration: 2.8 },
@@ -41,8 +48,9 @@ export class SchoolPromiseScene {
     return true;
   }
 
-  restore(seen: boolean): void {
-    this.played = seen;
+  restore(completed: boolean): void {
+    this.played = completed;
+    this.unlocked = false;
     this.root.visible = false;
   }
 
