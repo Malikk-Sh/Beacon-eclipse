@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { AssetManager, type ModelInstance } from '../world/AssetManager';
 
-const SOYKA_MODEL_URL = '/assets/DRN_Soyka.glb';
+const SOYKA_MODEL_URL = '/assets/DRN_Soyka.gltf';
 
 export class SoykaController {
   readonly object = new THREE.Group();
