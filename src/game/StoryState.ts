@@ -21,6 +21,7 @@ export interface StoryProgress {
   schoolEntered: boolean;
   schoolReconstructionStarted: boolean;
   schoolReconstructionCompleted: boolean;
+  schoolPromiseSceneSeen: boolean;
 }
 
 export interface StoryState {
@@ -54,6 +55,7 @@ export function createDefaultStoryState(): StoryState {
       schoolEntered: false,
       schoolReconstructionStarted: false,
       schoolReconstructionCompleted: false,
+      schoolPromiseSceneSeen: false,
     },
     energy: [],
     responseProfile: {
