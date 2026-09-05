@@ -7,8 +7,11 @@ import { WorldDressing } from './WorldDressing';
 export class VisualFoundation {
   private readonly weather: WeatherSystem;
 
-  constructor(scene: THREE.Scene, bridgeRoot: THREE.Group) {
+  constructor(scene: THREE.Scene) {
     this.removePrototypeEnvironment(scene);
+
+    const bridgeRoot = scene.getObjectByName('bridge-visual-root');
+    if (!(bridgeRoot instanceof THREE.Group)) throw new Error('Missing bridge visual root');
 
     const materials = new MaterialLibrary();
     new LightingRig(scene);
