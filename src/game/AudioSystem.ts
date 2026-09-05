@@ -9,6 +9,9 @@ export class AudioSystem {
   private rainGain: GainNode | null = null;
   private windGain: GainNode | null = null;
   private waterGain: GainNode | null = null;
+  private roomGain: GainNode | null = null;
+  private roomReverb: ConvolverNode | null = null;
+  private roomReverbGain: GainNode | null = null;
   private humGain: GainNode | null = null;
   private radioGain: GainNode | null = null;
   private motorGain: GainNode | null = null;
@@ -131,9 +134,13 @@ export class AudioSystem {
     this.setListenerPosition(context.listener, this.playerPosition, now);
     this.setPannerPosition(this.motorPanner, this.soykaPosition, now);
 
-    this.setGainTarget(this.rainGain, 0.17, now, 0.35);
-    this.setGainTarget(this.windGain, 0.055, now, 0.7);
-    this.setGainTarget(this.waterGain, 0.038, now, 1.1);
+    const schoolBlend = THREE.MathUtils.clamp((-this.playerPosition.z - 54) / 12, 0, 1);
+    const outdoorBlend = 1 - schoolBlend * 0.72;
+    this.setGainTarget(this.rainGain, 0.17 * outdoorBlend, now, 0.35);
+    this.setGainTarget(this.windGain, 0.055 * outdoorBlend, now, 0.7);
+    this.setGainTarget(this.waterGain, 0.038 * (1 - schoolBlend * 0.55), now, 1.1);
+    this.setGainTarget(this.roomGain, 0.026 * schoolBlend, now, 0.5);
+    this.setGainTarget(this.roomReverbGain, 0.2 * schoolBlend, now, 0.45);
 
     const poweredSystems = Object.values(this.powerState).filter(Boolean).length;
     this.setGainTarget(this.humGain, poweredSystems * 0.008, now, 0.3);
@@ -177,6 +184,13 @@ export class AudioSystem {
     this.rainGain = this.createNoiseLoop(context, 'highpass', 1250, 0.8);
     this.windGain = this.createNoiseLoop(context, 'bandpass', 340, 0.65);
     this.waterGain = this.createNoiseLoop(context, 'lowpass', 520, 0.7);
+    this.roomGain = this.createNoiseLoop(context, 'bandpass', 170, 0.45);
+
+    this.roomReverb = context.createConvolver();
+    this.roomReverb.buffer = this.createImpulseResponse(context, 0.62, 2.8);
+    this.roomReverbGain = context.createGain();
+    this.roomReverbGain.gain.value = 0;
+    this.roomReverb.connect(this.roomReverbGain).connect(this.master);
 
     this.humGain = context.createGain();
     this.humGain.gain.value = 0;
@@ -263,7 +277,9 @@ export class AudioSystem {
     const gain = context.createGain();
     gain.gain.setValueAtTime(0.045, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-    source.connect(filter).connect(gain).connect(master);
+    source.connect(filter).connect(gain);
+    gain.connect(master);
+    if (this.roomReverb) gain.connect(this.roomReverb);
     source.start(now, Math.random() * 3.8, 0.13);
   }
 
@@ -284,7 +300,9 @@ export class AudioSystem {
     gain.gain.setValueAtTime(0.001, now);
     gain.gain.exponentialRampToValueAtTime(0.018, now + 0.08);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 1.25);
-    oscillator.connect(filter).connect(gain).connect(master);
+    oscillator.connect(filter).connect(gain);
+    gain.connect(master);
+    if (this.roomReverb) gain.connect(this.roomReverb);
     oscillator.start(now);
     oscillator.stop(now + 1.3);
   }
@@ -300,6 +318,19 @@ export class AudioSystem {
       data[i] = previous * 0.72 + white * 0.28;
     }
     return buffer;
+  }
+
+  private createImpulseResponse(context: AudioContext, seconds: number, decay: number): AudioBuffer {
+    const frameCount = Math.floor(context.sampleRate * seconds);
+    const impulse = context.createBuffer(2, frameCount, context.sampleRate);
+    for (let channel = 0; channel < impulse.numberOfChannels; channel++) {
+      const data = impulse.getChannelData(channel);
+      for (let i = 0; i < frameCount; i++) {
+        const envelope = Math.pow(1 - i / frameCount, decay);
+        data[i] = (Math.random() * 2 - 1) * envelope;
+      }
+    }
+    return impulse;
   }
 
   private createPanner(
