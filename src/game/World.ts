@@ -27,6 +27,7 @@ export class GameWorld {
   private lighthouseDoorOpening = false;
 
   private readonly bridgePivot = new THREE.Group();
+  readonly bridgeVisualRoot = this.bridgePivot;
   private readonly bridgeBarrier: THREE.Mesh;
   private bridgeBarrierCollider: RAPIER.Collider | null;
   private bridgeDeckCollider: RAPIER.Collider | null = null;
