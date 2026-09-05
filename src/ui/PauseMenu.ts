@@ -1,5 +1,5 @@
 import { audioSystem } from '../game/AudioSystem';
-import type { GraphicsQuality } from '../game/SettingsStore';
+import { SettingsStore, type GraphicsQuality } from '../game/SettingsStore';
 import '../settings.css';
 
 export class PauseMenu {
@@ -7,9 +7,12 @@ export class PauseMenu {
   readonly backButton: HTMLButtonElement;
   readonly fullscreenButton: HTMLButtonElement;
   readonly qualitySelect: HTMLSelectElement;
+  readonly sfxRange: HTMLInputElement;
 
   private readonly overlay: HTMLElement;
   private readonly fullscreenState: HTMLElement;
+  private readonly sfxValue: HTMLElement;
+  private readonly settingsStore = new SettingsStore();
 
   constructor(root: HTMLElement) {
     this.overlay = document.createElement('div');
@@ -37,6 +40,13 @@ export class PauseMenu {
               <option value="high">ВЫСОКОЕ</option>
             </select>
           </label>
+          <label class="settings-row settings-volume" for="sfxVolume">
+            <span>ГРОМКОСТЬ ЭФФЕКТОВ</span>
+            <span class="settings-volume-control">
+              <input id="sfxVolume" type="range" min="0" max="100" step="5" aria-label="Громкость эффектов">
+              <b id="sfxVolumeValue">90%</b>
+            </span>
+          </label>
         </div>
         <footer class="settings-actions">
           <button type="button" class="settings-primary" id="continueGame">ПРОДОЛЖИТЬ</button>
@@ -51,6 +61,18 @@ export class PauseMenu {
     this.fullscreenButton = this.require<HTMLButtonElement>('#fullscreenToggle');
     this.fullscreenState = this.require('#fullscreenState');
     this.qualitySelect = this.require<HTMLSelectElement>('#qualitySelect');
+    this.sfxRange = this.require<HTMLInputElement>('#sfxVolume');
+    this.sfxValue = this.require('#sfxVolumeValue');
+
+    this.setSfxVolume(this.settingsStore.load().sfxVolume);
+    this.sfxRange.addEventListener('input', () => {
+      const volume = Number(this.sfxRange.value) / 100;
+      const settings = this.settingsStore.load();
+      settings.sfxVolume = volume;
+      this.settingsStore.save(settings);
+      audioSystem.setVolume(volume);
+      this.setSfxVolume(volume);
+    });
   }
 
   get isOpen(): boolean {
@@ -76,6 +98,12 @@ export class PauseMenu {
 
   setQuality(quality: GraphicsQuality): void {
     this.qualitySelect.value = quality;
+  }
+
+  private setSfxVolume(volume: number): void {
+    const percent = Math.round(volume * 100);
+    this.sfxRange.value = String(percent);
+    this.sfxValue.textContent = `${percent}%`;
   }
 
   private require<T extends Element = HTMLElement>(selector: string): T {
