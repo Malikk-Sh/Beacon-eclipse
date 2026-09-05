@@ -26,13 +26,11 @@ interface SchoolEchoRuntime extends SchoolEchoDefinition {
 interface SchoolReconstructionCallbacks {
   onEchoHeard?: (id: string) => void;
   onComplete?: () => void;
-  onPromiseSceneComplete?: () => void;
 }
 
 export class SchoolReconstruction {
   readonly entrance = new THREE.Vector3(0, 0, -60);
   readonly reconstructionNode = new THREE.Vector3(0, 0, -73);
-  readonly promiseAnchor: THREE.Vector3;
 
   private readonly root = new THREE.Group();
   private readonly memoryRoot = new THREE.Group();
@@ -43,6 +41,8 @@ export class SchoolReconstruction {
   private strength = 0;
   private targetStrength = 0;
   private completionFired = false;
+  private echoSequenceFired = false;
+  private promiseUnlocked = false;
   private memoryElapsed = 0;
   private cutAfterPromise = false;
 
@@ -60,7 +60,6 @@ export class SchoolReconstruction {
     new SchoolArea(this.root, this.physics, this.entrance);
     this.buildMemorySchool();
     this.promiseScene = new SchoolPromiseScene(this.memoryRoot, this.dialogue, this.entrance);
-    this.promiseAnchor = this.promiseScene.anchorPosition.clone();
 
     this.memoryLight.position.copy(this.entrance).add(new THREE.Vector3(0, 3.4, -13));
     this.scene.add(this.memoryLight);
@@ -82,35 +81,26 @@ export class SchoolReconstruction {
     return true;
   }
 
-  restore(active: boolean, heardIds: string[], completed: boolean, promiseSeen = false) {
+  restore(active: boolean, heardIds: string[], completed: boolean) {
     for (const echo of this.echoes) echo.heard = heardIds.includes(echo.id);
     this.completionFired = completed;
-    this.promiseScene.restore(promiseSeen);
+    this.echoSequenceFired = completed;
+    this.promiseUnlocked = false;
+    this.promiseScene.restore(completed);
 
-    if (active && !promiseSeen) {
-      this.active = true;
-      this.strength = 1;
-      this.targetStrength = 1;
-      this.memoryRoot.visible = true;
-      this.memoryLight.intensity = 10;
-    } else if (promiseSeen) {
+    if (completed) {
       this.active = false;
       this.strength = 0;
       this.targetStrength = 0;
       this.memoryRoot.visible = false;
       this.memoryLight.intensity = 0;
+    } else if (active) {
+      this.active = true;
+      this.strength = 1;
+      this.targetStrength = 1;
+      this.memoryRoot.visible = true;
+      this.memoryLight.intensity = 10;
     }
-  }
-
-  playPromiseScene(): boolean {
-    if (!this.active || !this.completionFired || this.strength < 0.7) return false;
-
-    return this.promiseScene.play(() => {
-      this.active = false;
-      this.targetStrength = 0;
-      this.cutAfterPromise = true;
-      this.callbacks.onPromiseSceneComplete?.();
-    });
   }
 
   update(dt: number, player: PlayerController) {
@@ -175,13 +165,34 @@ export class SchoolReconstruction {
       }
     }
 
-    if (!this.completionFired && heardCount >= 3 && !this.dialogue.isBusy) {
-      this.completionFired = true;
+    if (!this.echoSequenceFired && heardCount >= 3 && !this.dialogue.isBusy) {
+      this.echoSequenceFired = true;
       this.dialogue.play([
         { kind: 'line', speaker: 'ЛЕВ', text: 'Я знаю это место.', duration: 2.1 },
         { kind: 'line', speaker: 'МАРА', text: 'Лев...', duration: 2.1 },
         { kind: 'line', speaker: 'НИКА', text: 'Тогда почему ты звучишь так, будто боишься вспомнить?', duration: 3.2 },
-      ], () => this.callbacks.onComplete?.());
+        { kind: 'line', speaker: 'СОЙКА', text: 'Ещё один устойчивый фрагмент. В конце коридора.', duration: 2.8 },
+      ], () => {
+        if (this.completionFired) return;
+        this.promiseUnlocked = true;
+        this.promiseScene.unlock();
+      });
+      return;
+    }
+
+    if (
+      this.promiseUnlocked
+      && !this.dialogue.isBusy
+      && player.position.distanceTo(this.promiseScene.anchorPosition) < 2.8
+    ) {
+      const started = this.promiseScene.play(() => {
+        this.completionFired = true;
+        this.active = false;
+        this.targetStrength = 0;
+        this.cutAfterPromise = true;
+        this.callbacks.onComplete?.();
+      });
+      if (started) this.promiseUnlocked = false;
     }
   }
 
