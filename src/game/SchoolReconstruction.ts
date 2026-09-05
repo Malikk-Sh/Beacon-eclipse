@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { SchoolArea } from '../world/areas/SchoolArea';
 import type { DialogueSystem } from './DialogueSystem';
 import type { PlayerController } from './PlayerController';
+import { SchoolPromiseScene } from './SchoolPromiseScene';
 
 type MemoryCorruption = 'head-gap' | 'offset-arm' | 'fragmented';
 
@@ -35,11 +36,15 @@ export class SchoolReconstruction {
   private readonly memoryRoot = new THREE.Group();
   private readonly echoes: SchoolEchoRuntime[] = [];
   private readonly memoryLight = new THREE.PointLight(0xffbd75, 0, 28, 2);
+  private readonly promiseScene: SchoolPromiseScene;
   private active = false;
   private strength = 0;
   private targetStrength = 0;
   private completionFired = false;
+  private echoSequenceFired = false;
+  private promiseUnlocked = false;
   private memoryElapsed = 0;
+  private cutAfterPromise = false;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -54,6 +59,7 @@ export class SchoolReconstruction {
 
     new SchoolArea(this.root, this.physics, this.entrance);
     this.buildMemorySchool();
+    this.promiseScene = new SchoolPromiseScene(this.memoryRoot, this.dialogue, this.entrance);
 
     this.memoryLight.position.copy(this.entrance).add(new THREE.Vector3(0, 3.4, -13));
     this.scene.add(this.memoryLight);
@@ -78,7 +84,17 @@ export class SchoolReconstruction {
   restore(active: boolean, heardIds: string[], completed: boolean) {
     for (const echo of this.echoes) echo.heard = heardIds.includes(echo.id);
     this.completionFired = completed;
-    if (active) {
+    this.echoSequenceFired = completed;
+    this.promiseUnlocked = false;
+    this.promiseScene.restore(completed);
+
+    if (completed) {
+      this.active = false;
+      this.strength = 0;
+      this.targetStrength = 0;
+      this.memoryRoot.visible = false;
+      this.memoryLight.intensity = 0;
+    } else if (active) {
       this.active = true;
       this.strength = 1;
       this.targetStrength = 1;
@@ -106,6 +122,11 @@ export class SchoolReconstruction {
         : 1;
       material.opacity = Math.min(baseOpacity, this.strength * baseOpacity * flicker);
     });
+
+    if (this.cutAfterPromise && this.strength < 0.03) {
+      this.memoryRoot.visible = false;
+      this.cutAfterPromise = false;
+    }
 
     if (!this.active || this.strength < 0.55) return;
 
@@ -144,13 +165,34 @@ export class SchoolReconstruction {
       }
     }
 
-    if (!this.completionFired && heardCount >= 3 && !this.dialogue.isBusy) {
-      this.completionFired = true;
+    if (!this.echoSequenceFired && heardCount >= 3 && !this.dialogue.isBusy) {
+      this.echoSequenceFired = true;
       this.dialogue.play([
         { kind: 'line', speaker: 'ЛЕВ', text: 'Я знаю это место.', duration: 2.1 },
         { kind: 'line', speaker: 'МАРА', text: 'Лев...', duration: 2.1 },
         { kind: 'line', speaker: 'НИКА', text: 'Тогда почему ты звучишь так, будто боишься вспомнить?', duration: 3.2 },
-      ], () => this.callbacks.onComplete?.());
+        { kind: 'line', speaker: 'СОЙКА', text: 'Ещё один устойчивый фрагмент. В конце коридора.', duration: 2.8 },
+      ], () => {
+        if (this.completionFired) return;
+        this.promiseUnlocked = true;
+        this.promiseScene.unlock();
+      });
+      return;
+    }
+
+    if (
+      this.promiseUnlocked
+      && !this.dialogue.isBusy
+      && player.position.distanceTo(this.promiseScene.anchorPosition) < 2.8
+    ) {
+      const started = this.promiseScene.play(() => {
+        this.completionFired = true;
+        this.active = false;
+        this.targetStrength = 0;
+        this.cutAfterPromise = true;
+        this.callbacks.onComplete?.();
+      });
+      if (started) this.promiseUnlocked = false;
     }
   }
 
