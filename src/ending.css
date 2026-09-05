@@ -1,0 +1,20 @@
+.vertical-slice-ending {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.6s ease;
+}
+
+.vertical-slice-ending.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vertical-slice-ending {
+    transition-duration: 0.2s;
+  }
+}

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import './style.css';
 import './dialogue.css';
+import './ending.css';
+import { BridgeArchiveTerminal } from './game/BridgeArchiveTerminal';
 import { DialogueSystem } from './game/DialogueSystem';
 import { EnergySystem } from './game/EnergySystem';
 import { FullscreenController } from './game/FullscreenController';
@@ -17,6 +19,7 @@ import { createDefaultStoryState } from './game/StoryState';
 import { GameWorld } from './game/World';
 import { Hud } from './ui/Hud';
 import { PauseMenu } from './ui/PauseMenu';
+import { VerticalSliceEnding } from './ui/VerticalSliceEnding';
 import { VisualFoundation } from './world/VisualFoundation';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -35,9 +38,11 @@ const energy = new EnergySystem();
 energy.restore(storyState.energy);
 const hud = new Hud(app, energy);
 const pauseMenu = new PauseMenu(app);
+const sliceEnding = new VerticalSliceEnding(app);
 const dialogue = new DialogueSystem(hud);
 const world = new GameWorld(physics);
 const visualFoundation = new VisualFoundation(world.scene);
+const archiveTerminal = new BridgeArchiveTerminal(world.scene);
 const memory = new MemoryReconstructionSystem(world.scene, new THREE.Vector3(-3, 0, -10.8));
 const school = new SchoolReconstruction(world.scene, physics, dialogue, {
   onEchoHeard: (id) => {
@@ -46,7 +51,8 @@ const school = new SchoolReconstruction(world.scene, physics, dialogue, {
   },
   onComplete: () => {
     storyState.progress.schoolReconstructionCompleted = true;
-    hud.setObjective('ПРОДОЛЖИТЬ ЧЕРЕЗ ШКОЛУ');
+    archiveTerminal.setAvailable(true);
+    hud.setObjective('ВЕРНУТЬСЯ К АРХИВНОМУ ТЕРМИНАЛУ');
     persist(true);
   },
 });
@@ -67,6 +73,8 @@ school.restore(
   storyState.schoolEchoesHeard,
   storyState.progress.schoolReconstructionCompleted,
 );
+archiveTerminal.setAvailable(storyState.progress.schoolReconstructionCompleted);
+if (storyState.progress.bridgeArchiveTerminalSeen) archiveTerminal.showIdentityMatch();
 hud.refreshEnergy();
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -104,6 +112,7 @@ const pauseButton: HTMLButtonElement = pauseButtonCandidate;
 let warehouseConversationActive = false;
 let warehouseFarewellActive = false;
 let paused = false;
+let sliceEnded = false;
 let yaw = storyState.player.yaw;
 let pitch = -0.12;
 let autosaveElapsed = 0;
@@ -134,7 +143,7 @@ function persist(showIndicator = false) {
 }
 
 function setPaused(next: boolean) {
-  if (paused === next) return;
+  if (sliceEnded || paused === next) return;
   paused = next;
   if (paused) {
     input.consumeLookDelta();
@@ -187,8 +196,10 @@ function syncObjective() {
   const progress = storyState.progress;
   if (!progress.lighthousePowered) {
     hud.setObjective('НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ');
+  } else if (progress.bridgeArchiveTerminalSeen) {
+    hud.setObjective('ВЕРТИКАЛЬНЫЙ СРЕЗ ЗАВЕРШЁН');
   } else if (progress.schoolReconstructionCompleted) {
-    hud.setObjective('ПРОДОЛЖИТЬ ЧЕРЕЗ ШКОЛУ');
+    hud.setObjective('ВЕРНУТЬСЯ К АРХИВНОМУ ТЕРМИНАЛУ');
   } else if (progress.schoolReconstructionStarted) {
     hud.setObjective('ИССЛЕДОВАТЬ РЕКОНСТРУКЦИЮ');
   } else if (progress.schoolEntered) {
@@ -375,6 +386,31 @@ interactions.add({
   },
 });
 
+interactions.add({
+  id: 'bridge-archive-terminal',
+  label: '▣ АРХИВНЫЙ ТЕРМИНАЛ — ПРОВЕРИТЬ',
+  position: archiveTerminal.interactionPosition,
+  radius: 2.7,
+  enabled: () => storyState.progress.schoolReconstructionCompleted
+    && !storyState.progress.bridgeArchiveTerminalSeen
+    && !dialogue.isBusy,
+  action: () => {
+    archiveTerminal.showIdentityMatch();
+    hud.setObjective('СОВПАДЕНИЕ ЛИЧНОСТИ: LEV ARDEN');
+    dialogue.play([
+      { kind: 'line', speaker: 'ЛЕВ', text: 'Мара. Какая сегодня дата?', duration: 2.8 },
+      { kind: 'line', speaker: 'СВЯЗЬ', text: '— — —', duration: 1.5 },
+      { kind: 'line', speaker: 'НИКА', text: '…пап?', duration: 2.1 },
+    ], () => {
+      storyState.progress.bridgeArchiveTerminalSeen = true;
+      hud.setObjective('ВЕРТИКАЛЬНЫЙ СРЕЗ ЗАВЕРШЁН');
+      persist(true);
+      sliceEnded = true;
+      sliceEnding.show();
+    });
+  },
+});
+
 energy.onInsufficientPower = () => {
   dialogue.say('МАРА', 'Энергии недостаточно. Что-то придётся отключить.');
 };
@@ -527,7 +563,7 @@ function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.033);
 
-  if (!paused) {
+  if (!paused && !sliceEnded) {
     gameElapsed += dt;
     input.update();
     const look = input.consumeLookDelta();
