@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { audioSystem } from '../game/AudioSystem';
 import { LightingRig } from './LightingRig';
 import { MaterialLibrary } from './MaterialLibrary';
 import { WeatherSystem, type VisualQuality } from './WeatherSystem';
@@ -16,7 +17,7 @@ export class VisualFoundation {
     const materials = new MaterialLibrary();
     new LightingRig(scene);
     new WorldDressing(scene, materials, bridgeRoot);
-    this.weather = new WeatherSystem(scene);
+    this.weather = new WeatherSystem(scene, () => audioSystem.playThunder());
   }
 
   setQuality(quality: VisualQuality): void {
@@ -25,6 +26,7 @@ export class VisualFoundation {
 
   update(dt: number): void {
     this.weather.update(dt);
+    audioSystem.update(dt);
   }
 
   private removePrototypeEnvironment(scene: THREE.Scene): void {

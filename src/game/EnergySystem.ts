@@ -1,3 +1,5 @@
+import { audioSystem } from './AudioSystem';
+
 export type EnergySystemName = 'bridge' | 'warehouse' | 'lights' | 'pumps';
 
 export interface EnergySystemDefinition {
@@ -25,6 +27,7 @@ export class EnergySystem {
 
     if (this.active.has(system)) {
       this.active.delete(system);
+      this.syncAudioSystem(system, false);
       this.onChange?.(system, false);
       return true;
     }
@@ -35,6 +38,7 @@ export class EnergySystem {
     }
 
     this.active.add(system);
+    this.syncAudioSystem(system, true);
     this.onChange?.(system, true);
     return true;
   }
@@ -45,6 +49,9 @@ export class EnergySystem {
       const definition = this.definitions.find((item) => item.id === system);
       if (!definition || this.active.has(system)) continue;
       if (this.used + definition.cost <= this.capacity) this.active.add(system);
+    }
+    for (const definition of this.definitions) {
+      this.syncAudioSystem(definition.id, this.active.has(definition.id));
     }
   }
 
@@ -62,5 +69,10 @@ export class EnergySystem {
 
   get available() {
     return this.capacity - this.used;
+  }
+
+  private syncAudioSystem(system: EnergySystemName, enabled: boolean): void {
+    audioSystem.setPowerState(system, enabled);
+    if (system === 'bridge') audioSystem.setBridgeStarted(enabled);
   }
 }

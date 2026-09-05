@@ -1,3 +1,4 @@
+import { audioSystem } from '../game/AudioSystem';
 import type { GraphicsQuality } from '../game/SettingsStore';
 import '../settings.css';
 
@@ -57,11 +58,13 @@ export class PauseMenu {
   }
 
   open(): void {
+    audioSystem.setPaused(true);
     this.overlay.classList.remove('hidden');
     this.continueButton.focus({ preventScroll: true });
   }
 
   close(): void {
+    audioSystem.setPaused(false);
     this.overlay.classList.add('hidden');
   }
 
