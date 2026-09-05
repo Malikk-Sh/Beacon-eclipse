@@ -96,6 +96,7 @@ export class AssetManager {
   private prepareInstance(root: THREE.Object3D): void {
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
+      if (!object.geometry.getAttribute('normal')) object.geometry.computeVertexNormals();
       object.castShadow = true;
       object.receiveShadow = true;
     });
