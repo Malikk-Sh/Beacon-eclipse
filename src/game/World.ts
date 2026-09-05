@@ -114,6 +114,7 @@ export class GameWorld {
     }
 
     // Drawbridge. It starts raised; a physical gate blocks the approach until deployment finishes.
+    this.bridgePivot.name = 'bridge-visual-root';
     this.bridgePivot.position.set(0, 0.1, -17.5);
     this.bridgePivot.rotation.x = this.bridgeRaisedAngle;
     const bridgeDeck = new THREE.Mesh(

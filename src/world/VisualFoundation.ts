@@ -10,9 +10,12 @@ export class VisualFoundation {
   constructor(scene: THREE.Scene) {
     this.removePrototypeEnvironment(scene);
 
+    const bridgeRoot = scene.getObjectByName('bridge-visual-root');
+    if (!(bridgeRoot instanceof THREE.Group)) throw new Error('Missing bridge visual root');
+
     const materials = new MaterialLibrary();
     new LightingRig(scene);
-    new WorldDressing(scene, materials);
+    new WorldDressing(scene, materials, bridgeRoot);
     this.weather = new WeatherSystem(scene);
   }
 
