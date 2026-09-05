@@ -7,6 +7,7 @@ export class BridgeArea {
     this.addSupportCables(scene);
     this.addMovingDeckDetails(materials, bridgeRoot);
     this.addApproach(scene, materials);
+    this.addDriveMechanism(scene, materials);
   }
 
   private addPylons(scene: THREE.Scene, materials: MaterialLibrary): void {
@@ -153,6 +154,109 @@ export class BridgeArea {
       const post = this.box(scene, materials.darkSteel, x, 1.5, -18.45, 0.22, 3, 0.22);
       post.castShadow = true;
     }
+  }
+
+  private addDriveMechanism(scene: THREE.Scene, materials: MaterialLibrary): void {
+    const foundation = this.box(scene, materials.wetConcrete, -2.55, 0.13, -16.55, 2.35, 0.26, 1.95);
+    foundation.receiveShadow = true;
+
+    const housing = this.box(scene, materials.darkSteel, -2.75, 0.78, -16.72, 1.72, 1.25, 1.18);
+    housing.castShadow = true;
+    const serviceFace = this.box(scene, materials.paintedMetal, -2.75, 0.82, -16.08, 1.5, 1.02, 0.08);
+    serviceFace.castShadow = true;
+
+    const drumGeometry = new THREE.CylinderGeometry(0.29, 0.29, 0.5, 16);
+    const drums = new THREE.InstancedMesh(drumGeometry, materials.oldSteel, 2);
+    const matrix = new THREE.Matrix4();
+    const drumRotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
+    for (let i = 0; i < 2; i++) {
+      matrix.compose(
+        new THREE.Vector3(-3.08 + i * 0.68, 1.18, -15.98),
+        drumRotation,
+        new THREE.Vector3(1, 1, 1),
+      );
+      drums.setMatrixAt(i, matrix);
+    }
+    drums.castShadow = true;
+    scene.add(drums);
+
+    const gearMaterial = materials.rust;
+    const gear = new THREE.Mesh(new THREE.TorusGeometry(0.37, 0.085, 8, 18), gearMaterial);
+    gear.position.set(-2.75, 0.72, -15.98);
+    gear.castShadow = true;
+    scene.add(gear);
+
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.1, 12), materials.fadedPaint);
+    hub.position.set(-2.75, 0.72, -15.93);
+    hub.rotation.x = Math.PI / 2;
+    hub.castShadow = true;
+    scene.add(hub);
+
+    const toothGeometry = new THREE.BoxGeometry(0.095, 0.16, 0.08);
+    const teeth = new THREE.InstancedMesh(toothGeometry, gearMaterial, 12);
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const x = -2.75 + Math.cos(angle) * 0.45;
+      const y = 0.72 + Math.sin(angle) * 0.45;
+      const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), angle);
+      matrix.compose(new THREE.Vector3(x, y, -15.96), rotation, new THREE.Vector3(1, 1, 1));
+      teeth.setMatrixAt(i, matrix);
+    }
+    teeth.castShadow = true;
+    scene.add(teeth);
+
+    const controlBody = this.box(scene, materials.oldSteel, -1.55, 0.95, -16.12, 0.62, 1.34, 0.7);
+    controlBody.castShadow = true;
+    const controlFace = this.box(scene, materials.glass, -1.55, 1.19, -15.74, 0.48, 0.4, 0.045);
+    controlFace.rotation.x = -0.08;
+    controlFace.castShadow = false;
+
+    const indicatorGeometry = new THREE.SphereGeometry(0.047, 8, 6);
+    const indicators = new THREE.InstancedMesh(indicatorGeometry, materials.redSignal, 3);
+    for (let i = 0; i < 3; i++) {
+      matrix.makeTranslation(-1.7 + i * 0.15, 1.43, -15.71);
+      indicators.setMatrixAt(i, matrix);
+    }
+    scene.add(indicators);
+
+    const leverBase = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.12, 0.08, 10), materials.darkSteel);
+    leverBase.position.set(-1.55, 0.91, -15.7);
+    leverBase.rotation.x = Math.PI / 2;
+    scene.add(leverBase);
+    const lever = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.42, 7), materials.fadedPaint);
+    lever.position.set(-1.55, 1.06, -15.62);
+    lever.rotation.z = -0.38;
+    lever.castShadow = true;
+    scene.add(lever);
+
+    const guard = this.box(scene, materials.warningPaint, -1.55, 1.68, -16.15, 0.76, 0.11, 0.82);
+    guard.castShadow = true;
+
+    const pipeMaterial = materials.structural(0x10171b);
+    const pipeCurves = [
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-3.25, 0.46, -16.55),
+        new THREE.Vector3(-3.48, 0.34, -16.82),
+        new THREE.Vector3(-3.58, 0.28, -17.38),
+        new THREE.Vector3(-3.66, 0.34, -18.12),
+      ]),
+      new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-2.32, 0.43, -16.56),
+        new THREE.Vector3(-2.08, 0.26, -16.94),
+        new THREE.Vector3(-2.24, 0.22, -17.48),
+        new THREE.Vector3(-2.42, 0.3, -18.18),
+      ]),
+    ];
+    for (const curve of pipeCurves) {
+      const pipe = new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.035, 6, false), pipeMaterial);
+      pipe.castShadow = true;
+      scene.add(pipe);
+    }
+
+    const servicePlate = this.box(scene, materials.warningPaint, -3.25, 0.42, -15.97, 0.52, 0.2, 0.035);
+    servicePlate.castShadow = false;
+    const plateMark = this.box(scene, materials.lanePaint, -3.25, 0.42, -15.94, 0.32, 0.04, 0.015);
+    plateMark.castShadow = false;
   }
 
   private box(
