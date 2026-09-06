@@ -37,6 +37,7 @@ export class SchoolReconstruction {
   private readonly echoes: SchoolEchoRuntime[] = [];
   private readonly memoryLight = new THREE.PointLight(0xffbd75, 0, 28, 2);
   private readonly promiseScene: SchoolPromiseScene;
+  private readonly localPlayerPosition = new THREE.Vector3();
   private active = false;
   private strength = 0;
   private targetStrength = 0;
@@ -130,7 +131,7 @@ export class SchoolReconstruction {
 
     if (!this.active || this.strength < 0.55) return;
 
-    const localPlayer = player.position.clone().sub(this.entrance);
+    const localPlayer = this.localPlayerPosition.copy(player.position).sub(this.entrance);
     let heardCount = 0;
 
     for (const echo of this.echoes) {
