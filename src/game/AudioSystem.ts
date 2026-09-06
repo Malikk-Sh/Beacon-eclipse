@@ -142,7 +142,10 @@ export class AudioSystem {
     this.setGainTarget(this.roomGain, 0.026 * schoolBlend, now, 0.5);
     this.setGainTarget(this.roomReverbGain, 0.2 * schoolBlend, now, 0.45);
 
-    const poweredSystems = Object.values(this.powerState).filter(Boolean).length;
+    const poweredSystems = (this.powerState.bridge ? 1 : 0)
+      + (this.powerState.warehouse ? 1 : 0)
+      + (this.powerState.lights ? 1 : 0)
+      + (this.powerState.pumps ? 1 : 0);
     this.setGainTarget(this.humGain, poweredSystems * 0.008, now, 0.3);
 
     const warehouseDistance = this.planarDistance(this.playerPosition, 8, -7.25);
