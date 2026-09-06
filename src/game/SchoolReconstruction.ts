@@ -110,6 +110,8 @@ export class SchoolReconstruction {
     this.strength = THREE.MathUtils.lerp(this.strength, this.targetStrength, blend);
     this.memoryLight.intensity = this.strength * 10;
 
+    if (!this.memoryRoot.visible) return;
+
     this.memoryRoot.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return;
       const material = object.material;
