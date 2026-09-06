@@ -558,6 +558,7 @@ if (!loadedState) {
 const clock = new THREE.Clock();
 const cameraTarget = new THREE.Vector3();
 const cameraOffset = new THREE.Vector3();
+const cameraDesired = new THREE.Vector3();
 
 function animate() {
   requestAnimationFrame(animate);
@@ -612,7 +613,7 @@ function animate() {
       3.1 + Math.sin(-pitch) * 4,
       Math.cos(yaw) * Math.cos(pitch) * 7.5,
     );
-    camera.position.lerp(cameraTarget.clone().add(cameraOffset), 0.08);
+    camera.position.lerp(cameraDesired.copy(cameraTarget).add(cameraOffset), 0.08);
     camera.lookAt(cameraTarget);
   }
 
