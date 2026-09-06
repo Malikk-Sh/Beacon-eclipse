@@ -20,8 +20,6 @@ export class GameWorld {
     bridgeStart: new THREE.Vector3(0, 0, -18),
   };
 
-  private readonly rainGeometry: THREE.BufferGeometry;
-  private readonly rainCount = 1200;
   private readonly lighthouseDoor: THREE.Mesh;
   private lighthouseDoorCollider: RAPIER.Collider | null;
   private lighthouseDoorOpening = false;
@@ -150,19 +148,6 @@ export class GameWorld {
         this.bridgeIndicators.push(this.addIndicator(side, 1.4, z, 0xff4438));
       }
     }
-
-    const rainPositions = new Float32Array(this.rainCount * 3);
-    for (let i = 0; i < this.rainCount; i++) {
-      rainPositions[i * 3] = (Math.random() - 0.5) * 70;
-      rainPositions[i * 3 + 1] = Math.random() * 28;
-      rainPositions[i * 3 + 2] = (Math.random() - 0.5) * 100 - 2;
-    }
-    this.rainGeometry = new THREE.BufferGeometry();
-    this.rainGeometry.setAttribute('position', new THREE.BufferAttribute(rainPositions, 3));
-    this.scene.add(new THREE.Points(
-      this.rainGeometry,
-      new THREE.PointsMaterial({ color: 0x9fc8e8, size: 0.035, transparent: true, opacity: 0.7 }),
-    ));
   }
 
   unlockLighthouseDoor(immediate = false) {
@@ -216,13 +201,6 @@ export class GameWorld {
     this.warehouseLight.intensity = THREE.MathUtils.lerp(this.warehouseLight.intensity, this.warehouseLightTarget, lightBlend);
     this.portPowerLight.intensity = THREE.MathUtils.lerp(this.portPowerLight.intensity, this.portLightTarget, lightBlend);
     this.pumpLight.intensity = THREE.MathUtils.lerp(this.pumpLight.intensity, this.pumpLightTarget, lightBlend);
-
-    const positions = this.rainGeometry.attributes.position.array as Float32Array;
-    for (let i = 0; i < this.rainCount; i++) {
-      positions[i * 3 + 1] -= 16 * dt;
-      if (positions[i * 3 + 1] < 0) positions[i * 3 + 1] = 28;
-    }
-    this.rainGeometry.attributes.position.needsUpdate = true;
   }
 
   private finishBridgeDeployment() {
