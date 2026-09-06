@@ -9,6 +9,7 @@ export class SoykaController {
   private readonly assets = new AssetManager();
   private eye: THREE.Object3D | null = null;
   private readonly eyeBaseScale = new THREE.Vector3(1, 1, 1);
+  private readonly desiredPosition = new THREE.Vector3();
   private model: ModelInstance | null = null;
   private pulse = 0;
 
@@ -23,12 +24,12 @@ export class SoykaController {
   }
 
   update(target: THREE.Vector3, elapsed: number, dt: number) {
-    const desired = new THREE.Vector3(
+    this.desiredPosition.set(
       target.x - 1.25 + Math.sin(elapsed * 1.2) * 0.08,
       target.y + 2.2 + Math.sin(elapsed * 2.1) * 0.12,
       target.z + 0.15,
     );
-    this.object.position.lerp(desired, 0.12);
+    this.object.position.lerp(this.desiredPosition, 0.12);
     this.object.rotation.y = Math.sin(elapsed * 0.45) * 0.18;
     this.object.rotation.z = Math.sin(elapsed * 0.72) * 0.025;
     audioSystem.setSoykaPosition(this.object.position);
