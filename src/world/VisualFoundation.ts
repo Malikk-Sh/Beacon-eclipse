@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { audioSystem } from '../game/AudioSystem';
+import { RuntimePerformanceOverlay } from '../ui/RuntimePerformanceOverlay';
 import { LightingRig } from './LightingRig';
 import { MaterialLibrary } from './MaterialLibrary';
 import { WeatherSystem, type VisualQuality } from './WeatherSystem';
@@ -18,6 +19,7 @@ export class VisualFoundation {
     new LightingRig(scene);
     new WorldDressing(scene, materials, bridgeRoot);
     this.weather = new WeatherSystem(scene, () => audioSystem.playThunder());
+    new RuntimePerformanceOverlay();
   }
 
   setQuality(quality: VisualQuality): void {
