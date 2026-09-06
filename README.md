@@ -56,6 +56,21 @@ npm run preview
 
 Service worker регистрируется только в production-сборке. Для install/offline проверки нужен secure context (`https` или локальный `localhost`).
 
+## Runtime performance audit
+
+Для evidence-driven desktop/mobile проверки к URL игры можно добавить `?perf=1`. Overlay выключен по умолчанию и не меняет StoryState или settings.
+
+Он показывает rolling window до 180 кадров:
+
+- средний FPS и средний frame time;
+- p95 и worst frame time;
+- количество кадров длиннее 50 ms;
+- viewport и device pixel ratio;
+- CSS-размер и render-buffer размер canvas;
+- фактический effective pixel ratio.
+
+Для PWA/performance smoke test использовать production preview, а не `npm run dev`. Снимать показатели нужно отдельно на ключевых состояниях vertical slice, а не считать один экран доказательством производительности всего маршрута.
+
 ## Управление
 
 - `WASD` / стрелки — движение;
