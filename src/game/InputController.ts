@@ -5,7 +5,9 @@ export class InputController {
   private readonly keys = new Set<string>();
   private joystickPointer: number | null = null;
   private lookPointer: number | null = null;
-  private lookDelta = new THREE.Vector2();
+  private readonly lookDelta = new THREE.Vector2();
+  private readonly consumedLookDelta = new THREE.Vector2();
+  private readonly joystickDelta = new THREE.Vector2();
 
   constructor(
     private readonly joystick: HTMLElement,
@@ -65,9 +67,9 @@ export class InputController {
   }
 
   consumeLookDelta() {
-    const delta = this.lookDelta.clone();
+    this.consumedLookDelta.copy(this.lookDelta);
     this.lookDelta.set(0, 0);
-    return delta;
+    return this.consumedLookDelta;
   }
 
   private updateJoystick(clientX: number, clientY: number) {
@@ -75,9 +77,9 @@ export class InputController {
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
     const radius = rect.width * 0.32;
-    const raw = new THREE.Vector2(clientX - centerX, clientY - centerY);
-    if (raw.length() > radius) raw.setLength(radius);
-    this.stick.style.transform = `translate(${raw.x}px, ${raw.y}px)`;
-    this.movement.set(raw.x / radius, -raw.y / radius);
+    this.joystickDelta.set(clientX - centerX, clientY - centerY);
+    if (this.joystickDelta.length() > radius) this.joystickDelta.setLength(radius);
+    this.stick.style.transform = `translate(${this.joystickDelta.x}px, ${this.joystickDelta.y}px)`;
+    this.movement.set(this.joystickDelta.x / radius, -this.joystickDelta.y / radius);
   }
 }
