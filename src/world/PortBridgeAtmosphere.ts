@@ -81,7 +81,7 @@ export class PortBridgeAtmosphere {
     this.addRadioPulse(scene);
     this.addDriveFlywheel(scene, materials);
     this.addBridgeEdgeGuides(bridgeRoot);
-    this.applyBridgeSignalState(this.resolveBridgeSignalState());
+    this.applyBridgeSignalState(bridgeRoot.rotation.x <= 0.01 ? 'ready' : 'raised');
   }
 
   update(dt: number): void {
@@ -106,11 +106,16 @@ export class PortBridgeAtmosphere {
 
     const bridgeAngle = this.bridgeRoot.rotation.x;
     const angleDelta = this.lastBridgeAngle - bridgeAngle;
-    if (Math.abs(angleDelta) > 0.00001) this.driveFlywheel.rotation.z += angleDelta * 18;
-    this.lastBridgeAngle = bridgeAngle;
+    const bridgeMoving = Math.abs(angleDelta) > 0.00001;
+    if (bridgeMoving) this.driveFlywheel.rotation.z += angleDelta * 18;
 
-    const nextBridgeState = this.resolveBridgeSignalState();
+    const nextBridgeState: BridgeSignalState = bridgeMoving
+      ? 'moving'
+      : bridgeAngle <= 0.01
+        ? 'ready'
+        : 'raised';
     if (nextBridgeState !== this.bridgeSignalState) this.applyBridgeSignalState(nextBridgeState);
+    this.lastBridgeAngle = bridgeAngle;
 
     if (nextBridgeState === 'moving') {
       this.bridgeEdgeMaterial.emissiveIntensity = 1.75 + Math.sin(this.elapsed * 10.5) * 0.55;
@@ -220,12 +225,6 @@ export class PortBridgeAtmosphere {
   private normalizedPower(light: THREE.PointLight | null, maximum: number): number {
     if (!light) return 0;
     return THREE.MathUtils.clamp(light.intensity / maximum, 0, 1);
-  }
-
-  private resolveBridgeSignalState(): BridgeSignalState {
-    const angle = this.bridgeRoot.rotation.x;
-    if (Math.abs(this.lastBridgeAngle - angle) > 0.00001) return 'moving';
-    return angle <= 0.01 ? 'ready' : 'raised';
   }
 
   private applyBridgeSignalState(state: BridgeSignalState): void {
