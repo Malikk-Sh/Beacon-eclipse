@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from './MaterialLibrary';
 import { PortBridgeAtmosphere } from './PortBridgeAtmosphere';
+import { ScaleCueDressing } from './ScaleCueDressing';
 import { BridgeArea } from './areas/BridgeArea';
 import { LighthouseArea } from './areas/LighthouseArea';
 import { PortArea } from './areas/PortArea';
@@ -21,6 +22,7 @@ export class WorldDressing {
     new LighthouseArea(scene, materials);
     new PortArea(scene, materials);
     new BridgeArea(scene, materials, bridgeRoot);
+    new ScaleCueDressing(scene, materials);
     this.portBridgeAtmosphere = new PortBridgeAtmosphere(scene, materials, bridgeRoot);
     this.addDistantCity(scene, materials);
   }

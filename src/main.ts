@@ -607,11 +607,13 @@ function animate() {
       persist(false);
     }
 
+    const portraitFraming = THREE.MathUtils.clamp((0.9 - camera.aspect) / 0.4, 0, 1);
+    const cameraDistance = THREE.MathUtils.lerp(7.5, 9.1, portraitFraming);
     cameraTarget.set(player.position.x, player.position.y + 1.45, player.position.z);
     cameraOffset.set(
-      Math.sin(yaw) * Math.cos(pitch) * 7.5,
+      Math.sin(yaw) * Math.cos(pitch) * cameraDistance,
       3.1 + Math.sin(-pitch) * 4,
-      Math.cos(yaw) * Math.cos(pitch) * 7.5,
+      Math.cos(yaw) * Math.cos(pitch) * cameraDistance,
     );
     camera.position.lerp(cameraDesired.copy(cameraTarget).add(cameraOffset), 0.08);
     camera.lookAt(cameraTarget);
