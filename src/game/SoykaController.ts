@@ -14,6 +14,9 @@ export class SoykaController {
   private readonly followDelta = new THREE.Vector3();
   private model: ModelInstance | null = null;
   private pulse = 0;
+  private lookBackRemaining = 0;
+  private readonly lookBackTarget = new THREE.Vector3();
+  private readonly lingerPosition = new THREE.Vector3();
 
   constructor(scene: THREE.Scene) {
     this.object.scale.setScalar(SOYKA_VISUAL_SCALE);
@@ -26,12 +29,19 @@ export class SoykaController {
     this.pulse = 1;
   }
 
+  lookBackAt(position: THREE.Vector3) {
+    this.lookBackTarget.copy(position);
+    this.lingerPosition.copy(this.object.position);
+    this.lookBackRemaining = 2.4;
+  }
+
   update(target: THREE.Vector3, elapsed: number, dt: number) {
     this.desiredPosition.set(
       target.x - 1.62 + Math.sin(elapsed * 1.2) * 0.06,
       target.y + 1.62 + Math.sin(elapsed * 2.1) * 0.09 + Math.sin(elapsed * 0.57 + 0.8) * 0.025,
       target.z + 0.35,
     );
+    if (this.lookBackRemaining > 0.8) this.desiredPosition.copy(this.lingerPosition);
 
     this.followDelta.copy(this.desiredPosition).sub(this.object.position);
     const followBlend = 1 - Math.exp(-dt * 7.5);
@@ -40,12 +50,17 @@ export class SoykaController {
     const orientationBlend = 1 - Math.exp(-dt * 6.2);
     const bank = THREE.MathUtils.clamp(-this.followDelta.x * 0.08, -0.13, 0.13);
     const pitch = THREE.MathUtils.clamp(this.followDelta.z * 0.025, -0.06, 0.06);
-    const yaw = Math.sin(elapsed * 0.45) * 0.16
+    let yaw = Math.sin(elapsed * 0.45) * 0.16
       + THREE.MathUtils.clamp(this.followDelta.x * 0.045, -0.08, 0.08);
+    if (this.lookBackRemaining > 0) {
+      yaw = Math.atan2(this.object.position.x - this.lookBackTarget.x, this.object.position.z - this.lookBackTarget.z);
+      this.lookBackRemaining = Math.max(0, this.lookBackRemaining - dt);
+    }
     const rollDrift = Math.sin(elapsed * 0.72) * 0.022;
 
     this.object.rotation.x = THREE.MathUtils.lerp(this.object.rotation.x, pitch, orientationBlend);
-    this.object.rotation.y = THREE.MathUtils.lerp(this.object.rotation.y, yaw, orientationBlend);
+    const yawDelta = Math.atan2(Math.sin(yaw - this.object.rotation.y), Math.cos(yaw - this.object.rotation.y));
+    this.object.rotation.y += yawDelta * orientationBlend;
     this.object.rotation.z = THREE.MathUtils.lerp(this.object.rotation.z, bank + rollDrift, orientationBlend);
     audioSystem.setSoykaPosition(this.object.position);
 

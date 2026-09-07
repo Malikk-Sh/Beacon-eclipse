@@ -3,6 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import './style.css';
 import './dialogue.css';
 import './ending.css';
+import './warehouse-cutoff.css';
 import { BridgeArchiveTerminal } from './game/BridgeArchiveTerminal';
 import { DialogueSystem } from './game/DialogueSystem';
 import { EnergySystem } from './game/EnergySystem';
@@ -17,9 +18,11 @@ import { GraphicsQuality, SettingsStore } from './game/SettingsStore';
 import { SoykaController } from './game/SoykaController';
 import { createDefaultStoryState } from './game/StoryState';
 import { GameWorld } from './game/World';
+import { WarehouseFarewell } from './game/WarehouseFarewell';
 import { Hud } from './ui/Hud';
 import { PauseMenu } from './ui/PauseMenu';
 import { VerticalSliceEnding } from './ui/VerticalSliceEnding';
+import { WarehouseCutoff } from './ui/WarehouseCutoff';
 import { VisualFoundation } from './world/VisualFoundation';
 
 const app = document.querySelector<HTMLDivElement>('#app');
@@ -110,13 +113,40 @@ if (!pauseButtonCandidate) throw new Error('Missing pause button');
 const pauseButton: HTMLButtonElement = pauseButtonCandidate;
 
 let warehouseConversationActive = false;
-let warehouseFarewellActive = false;
 let paused = false;
 let sliceEnded = false;
 let yaw = storyState.player.yaw;
 let pitch = -0.12;
 let autosaveElapsed = 0;
 let gameElapsed = 0;
+
+const cutoff = new WarehouseCutoff(app, () => {
+  if (paused || sliceEnded) return;
+  if (!farewell.confirm()) farewell.cancel();
+}, () => farewell.cancel());
+const farewell = new WarehouseFarewell(storyState, energy, dialogue, {
+  onResponse: () => persist(true),
+  onReady: () => {
+    hud.closeEnergy();
+    cutoff.show();
+    input.setEnabled(false);
+    hud.setObjective('ОТКЛЮЧИТЬ СКЛАД 04');
+  },
+  onCancel: () => {
+    cutoff.hide();
+    syncObjective();
+    persist(false);
+    pauseButton.focus({ preventScroll: true });
+  },
+  onCutoff: () => {
+    cutoff.hide();
+    soyka.lookBackAt(world.landmarks.warehouse04);
+    dialogue.say('СВЯЗЬ', 'Сигнал потерян.', 2.4);
+    syncObjective();
+    persist(true);
+    pauseButton.focus({ preventScroll: true });
+  },
+});
 
 function rememberResponse(kind: keyof typeof storyState.responseProfile) {
   storyState.responseProfile[kind] += 1;
@@ -145,6 +175,9 @@ function persist(showIndicator = false) {
 function setPaused(next: boolean) {
   if (sliceEnded || paused === next) return;
   paused = next;
+  input.setEnabled(!paused && !hud.isEnergyOpen && !cutoff.isOpen);
+  hud.setPaused(paused);
+  cutoff.setPaused(paused);
   if (paused) {
     input.consumeLookDelta();
     persist(false);
@@ -225,7 +258,7 @@ interactions.add({
   label: '⚡ АВАРИЙНЫЙ ЩИТ — ЗАПУСТИТЬ',
   position: world.landmarks.lighthousePanel,
   radius: 2.5,
-  enabled: () => !storyState.progress.lighthousePowered,
+  enabled: () => !storyState.progress.lighthousePowered && !dialogue.isBusy,
   action: () => {
     storyState.progress.lighthousePowered = true;
     world.unlockLighthouseDoor();
@@ -243,9 +276,11 @@ interactions.add({
   label: '⚡ РАСПРЕДЕЛИТЕЛЬ',
   position: world.landmarks.energyStation,
   radius: 4.3,
+  enabled: () => !dialogue.isBusy && !farewell.active,
   action: () => {
     hud.setObjective('РАСПРЕДЕЛИТЬ ЭНЕРГИЮ');
     hud.openEnergy();
+    input.setEnabled(false);
   },
 });
 
@@ -283,7 +318,8 @@ interactions.add({
   radius: 3.3,
   enabled: () => energy.isActive('warehouse')
     && !storyState.progress.warehouseContacted
-    && !warehouseConversationActive,
+    && !warehouseConversationActive
+    && !dialogue.isBusy,
   action: () => {
     warehouseConversationActive = true;
     dialogue.play([
@@ -353,7 +389,8 @@ interactions.add({
   label: '⚡ ЗАПУСТИТЬ ПРИВОД МОСТА',
   position: world.landmarks.bridgeStart,
   radius: 3.6,
-  enabled: () => energy.isActive('bridge') && !storyState.progress.bridgeStarted,
+  enabled: () => energy.isActive('bridge') && !storyState.progress.bridgeStarted
+    && storyState.progress.warehouseContacted && !dialogue.isBusy && !farewell.active,
   action: () => {
     storyState.progress.bridgeStarted = true;
     world.startBridge();
@@ -411,75 +448,49 @@ interactions.add({
   },
 });
 
+hud.onEnergyToggle = (system) => {
+  if (paused || sliceEnded || farewell.active || dialogue.isBusy) return;
+  if (system === 'bridge' && !energy.isActive('bridge')
+    && !storyState.progress.warehouseContacted && !storyState.progress.bridgeStarted) {
+    hud.closeEnergy();
+    dialogue.say('МАРА', 'Сначала проверь радиосигнал на Складе 04. Там может быть кто-то живой.');
+    syncObjective();
+    return;
+  }
+  if (system === 'warehouse' && energy.isActive('warehouse')
+    && storyState.progress.warehouseContacted && !storyState.progress.warehouseFarewellPlayed) {
+    // Keep power, radio ambience and lights on throughout Nika's question/reply.
+    hud.closeEnergy();
+    farewell.begin();
+    return;
+  }
+  energy.toggle(system);
+};
+
 energy.onInsufficientPower = () => {
+  hud.closeEnergy();
   dialogue.say('МАРА', 'Энергии недостаточно. Что-то придётся отключить.');
 };
 energy.onChange = (system, enabled) => {
   world.setPowerState(system, enabled);
   storyState.energy = energy.activeSystems;
-
   if (system === 'pumps') {
     memory.setAnchorAvailable(enabled && !storyState.progress.memoryPrototypeSeen);
   }
-
-  if (
-    storyState.progress.warehouseContacted
-    && !storyState.progress.warehouseFarewellPlayed
-    && !warehouseFarewellActive
-    && !energy.isActive('warehouse')
-    && energy.isActive('bridge')
-  ) {
-    warehouseFarewellActive = true;
-    dialogue.play([
-      { kind: 'line', speaker: 'НИКА', text: 'Лев?', duration: 1.6 },
-      { kind: 'line', speaker: 'НИКА', text: 'Подожди... Ты ведь вернёшься?', duration: 3 },
-      {
-        kind: 'choice',
-        timeout: 5.5,
-        options: [
-          {
-            id: 'promise',
-            text: 'Обещаю.',
-            followUp: [{ kind: 'line', speaker: 'ЛЕВ', text: 'Обещаю.', duration: 2 }],
-          },
-          {
-            id: 'honest',
-            text: 'Я не знаю.',
-            followUp: [
-              { kind: 'line', speaker: 'ЛЕВ', text: 'Я не знаю.', duration: 1.8 },
-              { kind: 'line', speaker: 'НИКА', text: 'Хотя бы честно.', duration: 2 },
-            ],
-          },
-        ],
-        silence: {
-          id: 'silence',
-          text: '',
-          followUp: [{ kind: 'line', speaker: 'НИКА', text: 'Понятно.', duration: 2 }],
-        },
-        onSelect: (choice) => {
-          rememberChoice('nikaPromise', choice);
-          if (choice === 'silence') rememberResponse('silent');
-          else if (choice === 'honest') rememberResponse('vulnerable');
-          else rememberResponse('direct');
-          storyState.progress.warehouseFarewellPlayed = true;
-          warehouseFarewellActive = false;
-          persist(true);
-        },
-      },
-    ]);
-    hud.setObjective('ЗАПУСТИТЬ ПРИВОД МОСТА');
-  } else if (energy.isActive('warehouse') && !storyState.progress.warehouseContacted) {
+  if (system === 'warehouse' && enabled && !storyState.progress.warehouseContacted) {
+    hud.closeEnergy();
     dialogue.say('МАРА', 'На Складе 04 появился слабый радиосигнал.');
-    hud.setObjective('ПРОВЕРИТЬ СКЛАД 04');
-  } else if (energy.isActive('bridge')) {
+  } else if (system === 'bridge' && enabled) {
+    hud.closeEnergy();
     dialogue.say('МАРА', 'Мост получает питание. Доберись до привода.');
-    hud.setObjective('ЗАПУСТИТЬ ПРИВОД МОСТА');
   }
+  syncObjective();
   hud.refreshEnergy();
   persist(false);
 };
 
 hud.soykaButton.addEventListener('click', () => {
+  if (paused || sliceEnded || farewell.active) return;
   soyka.signal();
   dialogue.say('СОЙКА', 'Работаем.', 1.8);
 });
@@ -566,6 +577,10 @@ function animate() {
 
   if (!paused && !sliceEnded) {
     gameElapsed += dt;
+    const controlsBlocked = hud.isEnergyOpen || cutoff.isOpen;
+    input.setEnabled(!controlsBlocked);
+    hud.interactButton.disabled = controlsBlocked || farewell.active;
+    hud.soykaButton.disabled = controlsBlocked || farewell.active;
     input.update();
     const look = input.consumeLookDelta();
     yaw -= look.x * 0.004;
@@ -593,7 +608,11 @@ function animate() {
       }
     }
 
+    if (farewell.active && player.position.distanceTo(world.landmarks.energyStation) > 4.3) {
+      farewell.cancel();
+    }
     dialogue.update(dt);
+    cutoff.update(dt);
     interactions.update(player.position);
     soyka.update(player.position, gameElapsed, dt);
     memory.update(dt);
@@ -625,7 +644,10 @@ function animate() {
 animate();
 
 addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') persist(false);
+  if (document.visibilityState === 'hidden') {
+    setPaused(true);
+    persist(false);
+  }
 });
 addEventListener('pagehide', () => persist(false));
 addEventListener('resize', () => {

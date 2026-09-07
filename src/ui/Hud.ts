@@ -6,6 +6,7 @@ interface DialogueChoiceView {
 }
 
 export class Hud {
+  onEnergyToggle?: (system: EnergySystemName) => void;
   readonly joystick: HTMLElement;
   readonly stick: HTMLElement;
   readonly interactButton: HTMLButtonElement;
@@ -75,7 +76,7 @@ export class Hud {
       button.dataset.system = definition.id;
       button.innerHTML = `<span>${definition.label}</span><b>${definition.cost}</b>`;
       button.addEventListener('click', () => {
-        energy.toggle(definition.id);
+        this.onEnergyToggle?.(definition.id);
         this.refreshEnergy();
       });
       systems.appendChild(button);
@@ -87,6 +88,15 @@ export class Hud {
 
   get gameContainer() {
     return this.require<HTMLDivElement>('#game');
+  }
+
+  get isEnergyOpen() {
+    return !this.energyPanel.classList.contains('hidden');
+  }
+
+  setPaused(paused: boolean) {
+    this.require<HTMLElement>('.hud').inert = paused;
+    this.energyPanel.inert = paused;
   }
 
   setDialogue(text: string) {

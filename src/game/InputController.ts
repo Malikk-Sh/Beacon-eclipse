@@ -8,16 +8,21 @@ export class InputController {
   private readonly lookDelta = new THREE.Vector2();
   private readonly consumedLookDelta = new THREE.Vector2();
   private readonly joystickDelta = new THREE.Vector2();
+  private enabled = true;
 
   constructor(
     private readonly joystick: HTMLElement,
     private readonly stick: HTMLElement,
     private readonly lookSurface: HTMLElement,
   ) {
-    addEventListener('keydown', (event) => this.keys.add(event.code));
+    addEventListener('keydown', (event) => {
+      if (this.enabled) this.keys.add(event.code);
+    });
     addEventListener('keyup', (event) => this.keys.delete(event.code));
+    addEventListener('blur', () => this.reset());
 
     joystick.addEventListener('pointerdown', (event) => {
+      if (!this.enabled || this.joystickPointer !== null) return;
       event.preventDefault();
       event.stopPropagation();
       this.joystickPointer = event.pointerId;
@@ -36,9 +41,10 @@ export class InputController {
     };
     joystick.addEventListener('pointerup', releaseJoystick);
     joystick.addEventListener('pointercancel', releaseJoystick);
+    joystick.addEventListener('lostpointercapture', releaseJoystick);
 
     lookSurface.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0 || this.lookPointer !== null) return;
+      if (!this.enabled || event.button !== 0 || this.lookPointer !== null) return;
       this.lookPointer = event.pointerId;
       lookSurface.setPointerCapture(event.pointerId);
       this.lastLook.set(event.clientX, event.clientY);
@@ -54,16 +60,41 @@ export class InputController {
     };
     lookSurface.addEventListener('pointerup', releaseLook);
     lookSurface.addEventListener('pointercancel', releaseLook);
+    lookSurface.addEventListener('lostpointercapture', releaseLook);
   }
 
   private readonly lastLook = new THREE.Vector2();
 
   update() {
+    if (!this.enabled) return;
     if (this.joystickPointer !== null) return;
     const x = Number(this.keys.has('KeyD') || this.keys.has('ArrowRight')) - Number(this.keys.has('KeyA') || this.keys.has('ArrowLeft'));
     const y = Number(this.keys.has('KeyW') || this.keys.has('ArrowUp')) - Number(this.keys.has('KeyS') || this.keys.has('ArrowDown'));
     this.movement.set(x, y);
     if (this.movement.lengthSq() > 1) this.movement.normalize();
+  }
+
+  setEnabled(enabled: boolean) {
+    if (this.enabled === enabled) return;
+    this.enabled = enabled;
+    this.reset();
+  }
+
+  private reset() {
+    const joystickPointer = this.joystickPointer;
+    const lookPointer = this.lookPointer;
+    this.joystickPointer = null;
+    this.lookPointer = null;
+    this.keys.clear();
+    this.movement.set(0, 0);
+    this.lookDelta.set(0, 0);
+    this.stick.style.transform = 'translate(0px, 0px)';
+    if (joystickPointer !== null && this.joystick.hasPointerCapture(joystickPointer)) {
+      this.joystick.releasePointerCapture(joystickPointer);
+    }
+    if (lookPointer !== null && this.lookSurface.hasPointerCapture(lookPointer)) {
+      this.lookSurface.releasePointerCapture(lookPointer);
+    }
   }
 
   consumeLookDelta() {
