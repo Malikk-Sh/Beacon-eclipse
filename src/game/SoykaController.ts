@@ -3,6 +3,7 @@ import { AssetManager, type ModelInstance } from '../world/AssetManager';
 import { audioSystem } from './AudioSystem';
 
 const SOYKA_MODEL_URL = '/assets/DRN_Soyka.gltf';
+const SOYKA_VISUAL_SCALE = 0.52;
 
 export class SoykaController {
   readonly object = new THREE.Group();
@@ -15,6 +16,7 @@ export class SoykaController {
   private pulse = 0;
 
   constructor(scene: THREE.Scene) {
+    this.object.scale.setScalar(SOYKA_VISUAL_SCALE);
     this.createProceduralFallback();
     scene.add(this.object);
     void this.loadHeroModel();
@@ -26,9 +28,9 @@ export class SoykaController {
 
   update(target: THREE.Vector3, elapsed: number, dt: number) {
     this.desiredPosition.set(
-      target.x - 1.25 + Math.sin(elapsed * 1.2) * 0.08,
-      target.y + 2.2 + Math.sin(elapsed * 2.1) * 0.12 + Math.sin(elapsed * 0.57 + 0.8) * 0.035,
-      target.z + 0.15,
+      target.x - 1.62 + Math.sin(elapsed * 1.2) * 0.06,
+      target.y + 1.62 + Math.sin(elapsed * 2.1) * 0.09 + Math.sin(elapsed * 0.57 + 0.8) * 0.025,
+      target.z + 0.35,
     );
 
     this.followDelta.copy(this.desiredPosition).sub(this.object.position);
