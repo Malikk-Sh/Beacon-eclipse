@@ -13,6 +13,7 @@
 Сейчас реализованы:
 
 - Three.js сцена и камера от третьего лица;
+- объёмная проверка препятствий камеры, плавное возвращение после стены и одинаковое время сглаживания при разной частоте кадров;
 - Rapier-физика, коллизии и kinematic character controller;
 - клавиатурное и мобильное управление с virtual joystick;
 - пространственные interaction-зоны вместо постоянных HUD-действий;
@@ -62,6 +63,7 @@ npm test
 ```
 
 Сценарий отключения склада и оставшиеся проверки на устройствах описаны в [docs/warehouse-farewell.md](docs/warehouse-farewell.md).
+Поведение камеры и границы её проверки описаны в [docs/camera-obstruction.md](docs/camera-obstruction.md).
 
 Service worker регистрируется только в production-сборке. Для install/offline проверки нужен secure context (`https` или локальный `localhost`).
 

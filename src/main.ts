@@ -16,6 +16,7 @@ import { SaveSystem } from './game/SaveSystem';
 import { SchoolReconstruction } from './game/SchoolReconstruction';
 import { GraphicsQuality, SettingsStore } from './game/SettingsStore';
 import { SoykaController } from './game/SoykaController';
+import { ThirdPersonCamera } from './game/ThirdPersonCamera';
 import { createDefaultStoryState } from './game/StoryState';
 import { GameWorld } from './game/World';
 import { WarehouseFarewell } from './game/WarehouseFarewell';
@@ -58,7 +59,7 @@ const school = new SchoolReconstruction(world.scene, physics, dialogue, {
     hud.setObjective('ВЕРНУТЬСЯ К АРХИВНОМУ ТЕРМИНАЛУ');
     persist(true);
   },
-});
+}, world.cameraObstacles);
 const spawn = new THREE.Vector3(
   storyState.player.position.x,
   storyState.player.position.y,
@@ -106,6 +107,7 @@ pauseMenu.setQuality(settings.quality);
 applyGraphicsQuality(settings.quality);
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
+const cameraController = new ThirdPersonCamera(camera, physics, player.collider, world.cameraObstacles);
 const input = new InputController(hud.joystick, hud.stick, renderer.domElement);
 const interactions = new InteractionSystem(hud.interactButton);
 const pauseButtonCandidate = app.querySelector<HTMLButtonElement>('.pause');
@@ -567,9 +569,6 @@ if (!loadedState) {
 }
 
 const clock = new THREE.Clock();
-const cameraTarget = new THREE.Vector3();
-const cameraOffset = new THREE.Vector3();
-const cameraDesired = new THREE.Vector3();
 
 function animate() {
   requestAnimationFrame(animate);
@@ -626,16 +625,7 @@ function animate() {
       persist(false);
     }
 
-    const portraitFraming = THREE.MathUtils.clamp((0.9 - camera.aspect) / 0.4, 0, 1);
-    const cameraDistance = THREE.MathUtils.lerp(7.5, 9.1, portraitFraming);
-    cameraTarget.set(player.position.x, player.position.y + 1.45, player.position.z);
-    cameraOffset.set(
-      Math.sin(yaw) * Math.cos(pitch) * cameraDistance,
-      3.1 + Math.sin(-pitch) * 4,
-      Math.cos(yaw) * Math.cos(pitch) * cameraDistance,
-    );
-    camera.position.lerp(cameraDesired.copy(cameraTarget).add(cameraOffset), 0.08);
-    camera.lookAt(cameraTarget);
+    cameraController.update(player.position, yaw, pitch, dt);
   }
 
   renderer.render(world.scene, camera);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { EnergySystemName } from './EnergySystem';
+import type { CameraObstacle } from './ThirdPersonCamera';
 
 export interface WorldLandmarks {
   lighthousePanel: THREE.Vector3;
@@ -12,6 +13,7 @@ export interface WorldLandmarks {
 
 export class GameWorld {
   readonly scene = new THREE.Scene();
+  readonly cameraObstacles: CameraObstacle[] = [];
   readonly landmarks: WorldLandmarks = {
     lighthousePanel: new THREE.Vector3(-2.9, 0, 24),
     lighthouseExit: new THREE.Vector3(0, 0, 16.8),
@@ -98,6 +100,12 @@ export class GameWorld {
     tower.position.set(0, 9, 28.5);
     tower.castShadow = true;
     this.scene.add(tower);
+    // Camera-only envelope: the tower is above the player's walkable room.
+    this.cameraObstacles.push({
+      shape: new RAPIER.Cylinder(5, 3.25),
+      position: tower.position.clone(),
+      boundingRadius: Math.hypot(5, 3.25),
+    });
     const beacon = new THREE.PointLight(0xeaf6ff, 7, 38, 2);
     beacon.position.set(0, 14.2, 28.5);
     this.scene.add(beacon);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { MaterialLibrary } from '../MaterialLibrary';
+import { cameraBox, type CameraObstacle } from '../../game/ThirdPersonCamera';
 
 export class SchoolArea {
   private readonly materials = new MaterialLibrary();
@@ -9,6 +10,7 @@ export class SchoolArea {
     private readonly root: THREE.Group,
     private readonly physics: RAPIER.World,
     private readonly origin: THREE.Vector3,
+    private readonly cameraObstacles: CameraObstacle[] = [],
   ) {
     this.buildApproach();
     this.buildCorridor();
@@ -89,6 +91,9 @@ export class SchoolArea {
     for (let i = 0; i < 8; i++) {
       matrix.makeTranslation(0, 4.18, -2.3 - i * 4.35);
       beams.setMatrixAt(i, matrix);
+      this.cameraObstacles.push(cameraBox(
+        this.origin.clone().add(new THREE.Vector3(0, 4.18, -2.3 - i * 4.35)), 10.7, 0.16, 0.28,
+      ));
     }
     beams.castShadow = true;
     this.root.add(beams);
@@ -97,6 +102,7 @@ export class SchoolArea {
     entranceHeader.position.set(0, 3.82, -0.28);
     entranceHeader.castShadow = true;
     this.root.add(entranceHeader);
+    this.cameraObstacles.push(cameraBox(this.origin.clone().add(entranceHeader.position), 10.7, 0.5, 0.28));
 
     const schoolSign = new THREE.Mesh(new THREE.BoxGeometry(5.7, 0.82, 0.14), this.materials.fadedPaint);
     schoolSign.position.set(0, 3.42, -0.43);
