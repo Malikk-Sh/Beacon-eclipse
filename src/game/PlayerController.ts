@@ -6,6 +6,9 @@ import { LevVisual } from './LevVisual';
 
 export const PLAYER_SCENE_NAME = 'lev-player';
 
+const PLAYER_VISUAL_SCALE = 0.64;
+const PLAYER_VISUAL_GROUND_OFFSET = 0.34;
+
 export class PlayerController {
   readonly object = new THREE.Group();
   private readonly body: RAPIER.RigidBody;
@@ -19,6 +22,8 @@ export class PlayerController {
 
   constructor(private readonly physics: RAPIER.World, scene: THREE.Scene, spawn = new THREE.Vector3(0, 0, 24)) {
     this.object.name = PLAYER_SCENE_NAME;
+    this.visual.root.scale.setScalar(PLAYER_VISUAL_SCALE);
+    this.visual.root.position.y = PLAYER_VISUAL_GROUND_OFFSET;
     this.object.add(this.visual.root);
     scene.add(this.object);
 
@@ -46,6 +51,7 @@ export class PlayerController {
       this.object.rotation.y += facingDelta * turnBlend;
     }
     this.visual.update(dt, this.moving);
+    this.visual.root.position.y += PLAYER_VISUAL_GROUND_OFFSET;
     this.desiredMove.y = -2.2 * dt;
 
     this.controller.computeColliderMovement(this.collider, {
