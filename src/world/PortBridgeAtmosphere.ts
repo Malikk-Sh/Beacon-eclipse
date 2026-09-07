@@ -16,6 +16,13 @@ export class PortBridgeAtmosphere {
     roughness: 0.32,
     metalness: 0.24,
   });
+  private readonly portLampMaterial = new THREE.MeshStandardMaterial({
+    color: 0x594432,
+    emissive: 0xff9a4c,
+    emissiveIntensity: 0.02,
+    roughness: 0.34,
+    metalness: 0.22,
+  });
   private readonly routeMaterial = new THREE.MeshStandardMaterial({
     color: 0x24536a,
     emissive: 0x2c9ec8,
@@ -81,6 +88,7 @@ export class PortBridgeAtmosphere {
     this.addRadioPulse(scene);
     this.addDriveFlywheel(scene, materials);
     this.addBridgeEdgeGuides(bridgeRoot);
+    this.bindExistingSignalMeshes(scene, materials);
     this.applyBridgeSignalState(bridgeRoot.rotation.x <= 0.01 ? 'ready' : 'raised');
   }
 
@@ -94,6 +102,9 @@ export class PortBridgeAtmosphere {
 
     const warmFlicker = 0.95 + Math.sin(this.elapsed * 16.7) * 0.035 + Math.sin(this.elapsed * 7.1) * 0.015;
     this.warehouseGlowMaterial.emissiveIntensity = 0.05 + warehousePower * 3.1 * warmFlicker;
+
+    const lampFlicker = 0.96 + Math.sin(this.elapsed * 13.1) * 0.025 + Math.sin(this.elapsed * 5.7) * 0.015;
+    this.portLampMaterial.emissiveIntensity = 0.02 + portPower * 2.45 * lampFlicker;
 
     const powerLevels = [warehousePower, pumpPower, portPower];
     for (let i = 0; i < this.energyChannelMaterials.length; i++) {
@@ -220,6 +231,21 @@ export class PortBridgeAtmosphere {
       strip.position.set(x, 0.475, -14);
       bridgeRoot.add(strip);
     }
+  }
+
+  private bindExistingSignalMeshes(scene: THREE.Scene, materials: MaterialLibrary): void {
+    scene.traverse((object) => {
+      if (!(object instanceof THREE.InstancedMesh)) return;
+
+      if (object.material === materials.amberSignal && object.count === 5) {
+        object.material = this.portLampMaterial;
+        return;
+      }
+
+      if (object.material === materials.redSignal && object.count === 12) {
+        object.material = this.bridgeEdgeMaterial;
+      }
+    });
   }
 
   private normalizedPower(light: THREE.PointLight | null, maximum: number): number {
