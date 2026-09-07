@@ -4,10 +4,10 @@ export class LightingRig {
   readonly keyLight: THREE.DirectionalLight;
 
   constructor(scene: THREE.Scene) {
-    scene.background = new THREE.Color(0x050e16);
-    scene.fog = new THREE.FogExp2(0x07131c, 0.0138);
+    scene.background = new THREE.Color(0x07131c);
+    scene.fog = new THREE.FogExp2(0x091722, 0.0132);
 
-    const ambient = new THREE.HemisphereLight(0x789fc0, 0x070c10, 0.58);
+    const ambient = new THREE.HemisphereLight(0x7fa9c9, 0x0b1218, 0.72);
     scene.add(ambient);
 
     this.keyLight = new THREE.DirectionalLight(0xa8d3f4, 2.55);
@@ -24,11 +24,11 @@ export class LightingRig {
     this.keyLight.shadow.normalBias = 0.035;
     scene.add(this.keyLight);
 
-    const stormRim = new THREE.DirectionalLight(0x4e86aa, 0.82);
+    const stormRim = new THREE.DirectionalLight(0x568fb5, 0.96);
     stormRim.position.set(18, 10, -24);
     scene.add(stormRim);
 
-    const horizonFill = new THREE.PointLight(0x315f7c, 1.05, 105, 2);
+    const horizonFill = new THREE.PointLight(0x356884, 1.15, 105, 2);
     horizonFill.position.set(0, 10, -72);
     scene.add(horizonFill);
   }
