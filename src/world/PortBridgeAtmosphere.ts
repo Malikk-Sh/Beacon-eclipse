@@ -69,6 +69,8 @@ export class PortBridgeAtmosphere {
   ];
 
   private readonly driveFlywheel = new THREE.Group();
+  private readonly pumpRotors: THREE.Group[] = [];
+  private pumpRotorSpeed = 0;
   private elapsed = 0;
   private lastBridgeAngle: number;
   private bridgeSignalState: BridgeSignalState = 'raised';
@@ -84,6 +86,7 @@ export class PortBridgeAtmosphere {
     this.addPortPuddles(scene, materials);
     this.addWarehouseCanopyGlow(scene);
     this.addEnergyChannels(scene);
+    this.addPumpMachinery(scene, materials);
     this.addRouteStuds(scene);
     this.addRadioPulse(scene);
     this.addDriveFlywheel(scene, materials);
@@ -110,6 +113,13 @@ export class PortBridgeAtmosphere {
     for (let i = 0; i < this.energyChannelMaterials.length; i++) {
       const pulse = 0.94 + Math.sin(this.elapsed * (4.6 + i * 0.8) + i * 1.3) * 0.06;
       this.energyChannelMaterials[i].emissiveIntensity = 0.04 + powerLevels[i] * 2.75 * pulse;
+    }
+
+    const pumpTargetSpeed = pumpPower * 7.2;
+    const pumpBlend = 1 - Math.exp(-dt * 3.8);
+    this.pumpRotorSpeed = THREE.MathUtils.lerp(this.pumpRotorSpeed, pumpTargetSpeed, pumpBlend);
+    for (let i = 0; i < this.pumpRotors.length; i++) {
+      this.pumpRotors[i].rotation.z += this.pumpRotorSpeed * dt * (i === 0 ? 1 : -0.84);
     }
 
     this.routeMaterial.emissiveIntensity = 0.04 + routePower * (1.45 + Math.sin(this.elapsed * 3.4) * 0.12);
@@ -179,6 +189,36 @@ export class PortBridgeAtmosphere {
       const channel = new THREE.Mesh(geometry, this.energyChannelMaterials[i]);
       channel.position.copy(positions[i]);
       scene.add(channel);
+    }
+  }
+
+  private addPumpMachinery(scene: THREE.Scene, materials: MaterialLibrary): void {
+    const rimGeometry = new THREE.TorusGeometry(0.31, 0.045, 7, 18);
+    const spokeGeometry = new THREE.BoxGeometry(0.48, 0.035, 0.04);
+    const hubGeometry = new THREE.CylinderGeometry(0.075, 0.075, 0.07, 10);
+
+    for (const x of [-3.45, -2.55]) {
+      const rotor = new THREE.Group();
+      rotor.position.set(x, 1.42, -11.82);
+
+      const rim = new THREE.Mesh(rimGeometry, materials.oldSteel);
+      rim.castShadow = true;
+      rotor.add(rim);
+
+      for (let spokeIndex = 0; spokeIndex < 3; spokeIndex++) {
+        const spoke = new THREE.Mesh(spokeGeometry, materials.rust);
+        spoke.rotation.z = (spokeIndex / 3) * Math.PI;
+        spoke.castShadow = true;
+        rotor.add(spoke);
+      }
+
+      const hub = new THREE.Mesh(hubGeometry, materials.fadedPaint);
+      hub.rotation.x = Math.PI / 2;
+      hub.castShadow = true;
+      rotor.add(hub);
+
+      this.pumpRotors.push(rotor);
+      scene.add(rotor);
     }
   }
 
