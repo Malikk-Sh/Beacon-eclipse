@@ -2,15 +2,15 @@ import * as THREE from 'three';
 
 export class MaterialLibrary {
   readonly wetGround = new THREE.MeshStandardMaterial({
-    color: 0x0a131a,
-    roughness: 0.24,
-    metalness: 0.18,
+    color: 0x0e1a22,
+    roughness: 0.3,
+    metalness: 0.15,
   });
 
   readonly wetPatch = new THREE.MeshStandardMaterial({
-    color: 0x0c1820,
-    roughness: 0.08,
-    metalness: 0.22,
+    color: 0x12242e,
+    roughness: 0.18,
+    metalness: 0.18,
   });
 
   readonly concrete = new THREE.MeshStandardMaterial({
@@ -20,8 +20,8 @@ export class MaterialLibrary {
   });
 
   readonly wetConcrete = new THREE.MeshStandardMaterial({
-    color: 0x182329,
-    roughness: 0.38,
+    color: 0x1b282f,
+    roughness: 0.42,
     metalness: 0.08,
   });
 
@@ -38,15 +38,15 @@ export class MaterialLibrary {
   });
 
   readonly oldSteel = new THREE.MeshStandardMaterial({
-    color: 0x263036,
-    roughness: 0.58,
-    metalness: 0.68,
+    color: 0x2b373d,
+    roughness: 0.62,
+    metalness: 0.62,
   });
 
   readonly darkSteel = new THREE.MeshStandardMaterial({
-    color: 0x111a20,
-    roughness: 0.5,
-    metalness: 0.76,
+    color: 0x152129,
+    roughness: 0.56,
+    metalness: 0.68,
   });
 
   readonly rust = new THREE.MeshStandardMaterial({
@@ -109,9 +109,9 @@ export class MaterialLibrary {
   });
 
   readonly water = new THREE.MeshStandardMaterial({
-    color: 0x07131b,
-    roughness: 0.12,
-    metalness: 0.32,
+    color: 0x0a1821,
+    roughness: 0.17,
+    metalness: 0.28,
   });
 
   private readonly structuralCache = new Map<number, THREE.MeshStandardMaterial>();
