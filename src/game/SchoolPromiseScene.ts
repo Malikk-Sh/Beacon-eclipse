@@ -58,6 +58,8 @@ export class SchoolPromiseScene {
     const levMaterial = this.memoryMaterial(0xffdfb7, 0.52, false, 0.2);
     const girlMaterial = this.memoryMaterial(0xf2b77f, 0.34, true, 2.6);
     const traceMaterial = this.memoryMaterial(0xffc78f, 0.18, true, 4.4);
+    const datumMaterial = this.memoryMaterial(0xffd7a7, 0.13, true, 3.6);
+    const ghostPanelMaterial = this.memoryMaterial(0xf7b978, 0.075, true, 5.2);
 
     const floorTrace = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 2.2, 0.025, 24), traceMaterial);
     floorTrace.position.y = 0.51;
@@ -87,7 +89,56 @@ export class SchoolPromiseScene {
       matrix.makeTranslation(x, y, z);
       frame.setMatrixAt(index, matrix);
     });
+    frame.instanceMatrix.setUsage(THREE.StaticDrawUsage);
     this.root.add(frame);
+
+    const ghostDoors = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.035, 2.12, 1.48),
+      ghostPanelMaterial,
+      2,
+    );
+    [-2.08, 2.08].forEach((x, index) => {
+      matrix.makeTranslation(x, 1.52, 0);
+      ghostDoors.setMatrixAt(index, matrix);
+    });
+    ghostDoors.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    this.root.add(ghostDoors);
+
+    const wallDatum = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.05, 0.055, 1.72),
+      datumMaterial,
+      2,
+    );
+    [-2.06, 2.06].forEach((x, index) => {
+      matrix.makeTranslation(x, 1.12, 0);
+      wallDatum.setMatrixAt(index, matrix);
+    });
+    wallDatum.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    this.root.add(wallDatum);
+
+    const crossTileLines = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(4.15, 0.018, 0.035),
+      traceMaterial,
+      5,
+    );
+    for (let i = 0; i < 5; i++) {
+      matrix.makeTranslation(0, 0.505, -1.4 + i * 0.7);
+      crossTileLines.setMatrixAt(i, matrix);
+    }
+    crossTileLines.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    this.root.add(crossTileLines);
+
+    const longitudinalTileLines = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(0.035, 0.018, 3.35),
+      traceMaterial,
+      3,
+    );
+    [-1.38, 0, 1.38].forEach((x, index) => {
+      matrix.makeTranslation(x, 0.505, 0);
+      longitudinalTileLines.setMatrixAt(index, matrix);
+    });
+    longitudinalTileLines.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+    this.root.add(longitudinalTileLines);
 
     const fragments = new THREE.InstancedMesh(
       new THREE.BoxGeometry(0.09, 0.07, 0.07),
@@ -102,6 +153,7 @@ export class SchoolPromiseScene {
       matrix.makeTranslation(x, y, z);
       fragments.setMatrixAt(index, matrix);
     });
+    fragments.instanceMatrix.setUsage(THREE.StaticDrawUsage);
     this.root.add(fragments);
   }
 
