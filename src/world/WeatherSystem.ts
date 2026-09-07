@@ -11,6 +11,9 @@ export class WeatherSystem {
   private activeStreaks = 560;
   private lightningTimer = 8 + Math.random() * 10;
   private lightningEnergy = 0;
+  private lightningAftershockTimer = 0;
+  private lightningAftershockPending = false;
+  private gustPhase = Math.random() * Math.PI * 2;
 
   constructor(scene: THREE.Scene, private readonly onLightning?: () => void) {
     for (let i = 0; i < this.maxStreaks; i++) this.resetStreak(i, Math.random() * 28);
@@ -42,11 +45,17 @@ export class WeatherSystem {
   }
 
   update(dt: number): void {
+    this.gustPhase += dt * 0.34;
+    const windSpeed = 4.15
+      + Math.sin(this.gustPhase) * 1.05
+      + Math.sin(this.gustPhase * 0.41 + 1.7) * 0.48;
+    const zDrift = 0.72 + Math.sin(this.gustPhase * 0.63) * 0.24;
+
     for (let i = 0; i < this.activeStreaks; i++) {
       const offset = i * 6;
-      let x = this.positions[offset] - 4.2 * dt;
+      let x = this.positions[offset] - windSpeed * dt;
       let y = this.positions[offset + 1] - this.speeds[i] * dt;
-      let z = this.positions[offset + 2] + 0.7 * dt;
+      let z = this.positions[offset + 2] + zDrift * dt;
 
       if (y < 0 || x < -38 || z > 50) {
         this.resetStreak(i, 25 + Math.random() * 4);
@@ -60,9 +69,20 @@ export class WeatherSystem {
     this.lightningTimer -= dt;
     if (this.lightningTimer <= 0) {
       this.lightningEnergy = 1;
+      this.lightningAftershockTimer = 0.12;
+      this.lightningAftershockPending = true;
       this.lightningTimer = 8 + Math.random() * 15;
       this.onLightning?.();
     }
+
+    if (this.lightningAftershockPending) {
+      this.lightningAftershockTimer -= dt;
+      if (this.lightningAftershockTimer <= 0) {
+        this.lightningEnergy = Math.max(this.lightningEnergy, 0.62);
+        this.lightningAftershockPending = false;
+      }
+    }
+
     this.lightningEnergy = Math.max(0, this.lightningEnergy - dt * 7.5);
     const pulse = this.lightningEnergy * this.lightningEnergy;
     this.lightning.intensity = pulse * 5.8;
