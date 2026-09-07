@@ -3,6 +3,7 @@ import { audioSystem } from '../game/AudioSystem';
 import { RuntimePerformanceOverlay } from '../ui/RuntimePerformanceOverlay';
 import { LightingRig } from './LightingRig';
 import { MaterialLibrary } from './MaterialLibrary';
+import { SchoolDetailDressing } from './SchoolDetailDressing';
 import { WeatherSystem, type VisualQuality } from './WeatherSystem';
 import { WorldDressing } from './WorldDressing';
 
@@ -19,6 +20,7 @@ export class VisualFoundation {
     const materials = new MaterialLibrary();
     new LightingRig(scene);
     this.dressing = new WorldDressing(scene, materials, bridgeRoot);
+    new SchoolDetailDressing(scene, materials);
     this.weather = new WeatherSystem(scene, () => audioSystem.playThunder());
     new RuntimePerformanceOverlay();
   }
