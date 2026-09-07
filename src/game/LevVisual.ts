@@ -10,6 +10,7 @@ export class LevVisual {
   private readonly torsoRoot = new THREE.Group();
   private gait = 0;
   private motionBlend = 0;
+  private elapsed = 0;
 
   constructor() {
     const jacket = new THREE.MeshStandardMaterial({ color: 0x151d24, roughness: 0.82, metalness: 0.08 });
@@ -40,20 +41,38 @@ export class LevVisual {
   }
 
   update(dt: number, moving: boolean): void {
+    this.elapsed += dt;
     const target = moving ? 1 : 0;
     this.motionBlend = THREE.MathUtils.lerp(this.motionBlend, target, 1 - Math.exp(-dt * 8));
     this.gait += dt * THREE.MathUtils.lerp(2.4, 8.2, this.motionBlend);
 
-    const swing = Math.sin(this.gait) * 0.42 * this.motionBlend;
-    const counterSwing = Math.sin(this.gait + Math.PI) * 0.42 * this.motionBlend;
-    const settle = Math.sin(this.gait * 2) * 0.018 * this.motionBlend;
+    const stride = Math.sin(this.gait);
+    const counterStride = Math.sin(this.gait + Math.PI);
+    const doubleStep = Math.sin(this.gait * 2);
+    const idleWeight = 1 - this.motionBlend;
+    const breath = Math.sin(this.elapsed * 1.35);
+    const idleShoulder = Math.sin(this.elapsed * 0.82 + 0.6);
+    const legSwing = 0.46 * this.motionBlend;
+    const armSwing = 0.31 * this.motionBlend;
+    const verticalStep = Math.abs(Math.sin(this.gait)) * 0.028 * this.motionBlend;
 
-    this.leftArm.rotation.x = counterSwing * 0.72;
-    this.rightArm.rotation.x = swing * 0.72;
-    this.leftLeg.rotation.x = swing;
-    this.rightLeg.rotation.x = counterSwing;
-    this.torsoRoot.rotation.z = Math.sin(this.gait) * 0.018 * this.motionBlend;
-    this.root.position.y = Math.abs(settle);
+    this.leftArm.rotation.x = counterStride * armSwing + idleShoulder * 0.018 * idleWeight;
+    this.rightArm.rotation.x = stride * armSwing - idleShoulder * 0.018 * idleWeight;
+    this.leftArm.rotation.z = -0.035 + doubleStep * 0.016 * this.motionBlend - idleShoulder * 0.01 * idleWeight;
+    this.rightArm.rotation.z = 0.035 - doubleStep * 0.016 * this.motionBlend + idleShoulder * 0.01 * idleWeight;
+
+    this.leftLeg.rotation.x = stride * legSwing;
+    this.rightLeg.rotation.x = counterStride * legSwing;
+    this.leftLeg.rotation.z = -0.012 - doubleStep * 0.008 * this.motionBlend;
+    this.rightLeg.rotation.z = 0.012 + doubleStep * 0.008 * this.motionBlend;
+
+    this.torsoRoot.rotation.x = -0.045 * this.motionBlend + doubleStep * 0.008 * this.motionBlend;
+    this.torsoRoot.rotation.y = stride * 0.05 * this.motionBlend;
+    this.torsoRoot.rotation.z = stride * 0.018 * this.motionBlend + breath * 0.006 * idleWeight;
+    this.torsoRoot.position.x = -stride * 0.012 * this.motionBlend + idleShoulder * 0.003 * idleWeight;
+    this.torsoRoot.position.y = breath * 0.008 * idleWeight;
+    this.torsoRoot.scale.set(1, 1 + breath * 0.004 * idleWeight, 1);
+    this.root.position.y = verticalStep;
   }
 
   private buildTorso(

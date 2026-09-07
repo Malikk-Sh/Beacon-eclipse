@@ -38,7 +38,12 @@ export class PlayerController {
     if (this.moving) {
       this.desiredMove.normalize().applyAxisAngle(this.yAxis, cameraYaw).multiplyScalar(this.speed * dt);
       const facing = Math.atan2(this.desiredMove.x, this.desiredMove.z) + Math.PI;
-      this.object.rotation.y = THREE.MathUtils.lerp(this.object.rotation.y, facing, 0.22);
+      const facingDelta = Math.atan2(
+        Math.sin(facing - this.object.rotation.y),
+        Math.cos(facing - this.object.rotation.y),
+      );
+      const turnBlend = 1 - Math.exp(-dt * 11);
+      this.object.rotation.y += facingDelta * turnBlend;
     }
     this.visual.update(dt, this.moving);
     this.desiredMove.y = -2.2 * dt;

@@ -10,6 +10,7 @@ export class SoykaController {
   private eye: THREE.Object3D | null = null;
   private readonly eyeBaseScale = new THREE.Vector3(1, 1, 1);
   private readonly desiredPosition = new THREE.Vector3();
+  private readonly followDelta = new THREE.Vector3();
   private model: ModelInstance | null = null;
   private pulse = 0;
 
@@ -26,16 +27,29 @@ export class SoykaController {
   update(target: THREE.Vector3, elapsed: number, dt: number) {
     this.desiredPosition.set(
       target.x - 1.25 + Math.sin(elapsed * 1.2) * 0.08,
-      target.y + 2.2 + Math.sin(elapsed * 2.1) * 0.12,
+      target.y + 2.2 + Math.sin(elapsed * 2.1) * 0.12 + Math.sin(elapsed * 0.57 + 0.8) * 0.035,
       target.z + 0.15,
     );
-    this.object.position.lerp(this.desiredPosition, 0.12);
-    this.object.rotation.y = Math.sin(elapsed * 0.45) * 0.18;
-    this.object.rotation.z = Math.sin(elapsed * 0.72) * 0.025;
+
+    this.followDelta.copy(this.desiredPosition).sub(this.object.position);
+    const followBlend = 1 - Math.exp(-dt * 7.5);
+    this.object.position.lerp(this.desiredPosition, followBlend);
+
+    const orientationBlend = 1 - Math.exp(-dt * 6.2);
+    const bank = THREE.MathUtils.clamp(-this.followDelta.x * 0.08, -0.13, 0.13);
+    const pitch = THREE.MathUtils.clamp(this.followDelta.z * 0.025, -0.06, 0.06);
+    const yaw = Math.sin(elapsed * 0.45) * 0.16
+      + THREE.MathUtils.clamp(this.followDelta.x * 0.045, -0.08, 0.08);
+    const rollDrift = Math.sin(elapsed * 0.72) * 0.022;
+
+    this.object.rotation.x = THREE.MathUtils.lerp(this.object.rotation.x, pitch, orientationBlend);
+    this.object.rotation.y = THREE.MathUtils.lerp(this.object.rotation.y, yaw, orientationBlend);
+    this.object.rotation.z = THREE.MathUtils.lerp(this.object.rotation.z, bank + rollDrift, orientationBlend);
     audioSystem.setSoykaPosition(this.object.position);
 
     if (!this.eye) return;
-    const pulseScale = this.pulse > 0 ? 1 + this.pulse * 0.55 : 1;
+    const pulseWave = this.pulse > 0 ? Math.sin((1 - this.pulse) * Math.PI) : 0;
+    const pulseScale = 1 + this.pulse * 0.36 + pulseWave * 0.12;
     this.eye.scale.copy(this.eyeBaseScale).multiplyScalar(pulseScale);
     this.pulse = Math.max(0, this.pulse - dt * 2.5);
   }
