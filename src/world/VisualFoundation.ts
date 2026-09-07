@@ -8,6 +8,7 @@ import { WorldDressing } from './WorldDressing';
 
 export class VisualFoundation {
   private readonly weather: WeatherSystem;
+  private readonly dressing: WorldDressing;
 
   constructor(scene: THREE.Scene) {
     this.removePrototypeEnvironment(scene);
@@ -17,7 +18,7 @@ export class VisualFoundation {
 
     const materials = new MaterialLibrary();
     new LightingRig(scene);
-    new WorldDressing(scene, materials, bridgeRoot);
+    this.dressing = new WorldDressing(scene, materials, bridgeRoot);
     this.weather = new WeatherSystem(scene, () => audioSystem.playThunder());
     new RuntimePerformanceOverlay();
   }
@@ -27,6 +28,7 @@ export class VisualFoundation {
   }
 
   update(dt: number): void {
+    this.dressing.update(dt);
     this.weather.update(dt);
     audioSystem.update(dt);
   }

@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from './MaterialLibrary';
+import { PortBridgeAtmosphere } from './PortBridgeAtmosphere';
 import { BridgeArea } from './areas/BridgeArea';
 import { LighthouseArea } from './areas/LighthouseArea';
 import { PortArea } from './areas/PortArea';
 
 export class WorldDressing {
+  private readonly portBridgeAtmosphere: PortBridgeAtmosphere;
+
   constructor(scene: THREE.Scene, materials: MaterialLibrary, bridgeRoot: THREE.Group) {
     this.addWetPatch(scene, materials, -4, 13, 5, 9);
     this.addWetPatch(scene, materials, 5, 1, 8, 7);
@@ -18,7 +21,12 @@ export class WorldDressing {
     new LighthouseArea(scene, materials);
     new PortArea(scene, materials);
     new BridgeArea(scene, materials, bridgeRoot);
+    this.portBridgeAtmosphere = new PortBridgeAtmosphere(scene, materials, bridgeRoot);
     this.addDistantCity(scene, materials);
+  }
+
+  update(dt: number): void {
+    this.portBridgeAtmosphere.update(dt);
   }
 
   private addDistantCity(scene: THREE.Scene, materials: MaterialLibrary): void {
