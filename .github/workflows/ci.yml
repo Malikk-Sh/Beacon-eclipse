@@ -20,7 +20,7 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm ci
-      - name: Test narrative and input
+      - name: Test narrative, input and camera
         run: npm test
       - name: Build
         run: npm run build

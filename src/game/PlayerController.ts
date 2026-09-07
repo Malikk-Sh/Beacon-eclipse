@@ -12,7 +12,7 @@ const PLAYER_VISUAL_GROUND_OFFSET = 0.34;
 export class PlayerController {
   readonly object = new THREE.Group();
   private readonly body: RAPIER.RigidBody;
-  private readonly collider: RAPIER.Collider;
+  readonly collider: RAPIER.Collider;
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly visual = new LevVisual();
   private readonly desiredMove = new THREE.Vector3();

@@ -4,6 +4,7 @@ import { SchoolArea } from '../world/areas/SchoolArea';
 import type { DialogueSystem } from './DialogueSystem';
 import type { PlayerController } from './PlayerController';
 import { SchoolPromiseScene } from './SchoolPromiseScene';
+import type { CameraObstacle } from './ThirdPersonCamera';
 
 type MemoryCorruption = 'head-gap' | 'offset-arm' | 'fragmented';
 
@@ -52,13 +53,14 @@ export class SchoolReconstruction {
     private readonly physics: RAPIER.World,
     private readonly dialogue: DialogueSystem,
     private readonly callbacks: SchoolReconstructionCallbacks = {},
+    cameraObstacles: CameraObstacle[] = [],
   ) {
     this.root.position.copy(this.entrance);
     this.memoryRoot.position.copy(this.entrance);
     this.scene.add(this.root, this.memoryRoot);
     this.memoryRoot.visible = false;
 
-    new SchoolArea(this.root, this.physics, this.entrance);
+    new SchoolArea(this.root, this.physics, this.entrance, cameraObstacles);
     this.buildMemorySchool();
     this.promiseScene = new SchoolPromiseScene(this.memoryRoot, this.dialogue, this.entrance);
 
