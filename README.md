@@ -31,7 +31,8 @@
 - финальный bridge/archive hook vertical slice: `IDENTITY MATCH / LEV ARDEN`, архивная дата и unresolved `…пап?` blackout;
 - hero-модель Сойки с runtime GLTF asset pipeline и процедурным fallback;
 - более читаемый инженерный силуэт Льва с лёгкой procedural gait-анимацией;
-- визуальная основа: ACES tone mapping, экспозиция, холодный свет, fog, wet-material language, ветер, дождь и молнии;
+- визуальная основа: PBR-фактуры бетона, металла и ткани, ACES, небо и отражения PMREM, вода с движущейся рябью, мягкие лужи, fog, ветер, дождь и молнии;
+- скатная крыша склада, промышленные окна, вентиляция, рёбра контейнеров, причал и многоплановый городской горизонт с instancing;
 - environmental audio foundation без постоянной музыки: дождь, ветер, гром, металл, radio static, вода, электрический гул, моторы Сойки, шаги и school room ambience/reverb;
 - pause/settings menu, fullscreen toggle, Low / Medium / High quality presets и live SFX volume;
 - dependency-free PWA packaging: manifest, install icons, production-only service worker registration и offline app shell;
@@ -63,6 +64,7 @@ npm test
 ```
 
 Сценарий отключения склада и оставшиеся проверки на устройствах описаны в [docs/warehouse-farewell.md](docs/warehouse-farewell.md).
+Текущий графический проход и ограничения проверки описаны в [docs/graphics-foundation.md](docs/graphics-foundation.md).
 Поведение камеры и границы её проверки описаны в [docs/camera-obstruction.md](docs/camera-obstruction.md).
 
 Service worker регистрируется только в production-сборке. Для install/offline проверки нужен secure context (`https` или локальный `localhost`).

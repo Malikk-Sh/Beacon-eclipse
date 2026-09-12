@@ -1,4 +1,24 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { surfaceMaterial } from '../world/SurfaceTextures';
+
+function softBox(x: number, y: number, z: number): THREE.BufferGeometry {
+  return new RoundedBoxGeometry(x, y, z, 2, Math.min(0.055, x * 0.2, y * 0.2, z * 0.2));
+}
+
+function garment(top: number, bottom: number, height: number): THREE.BufferGeometry {
+  const geometry = new THREE.CylinderGeometry(top, bottom, height, 20, 10);
+  const position = geometry.getAttribute('position');
+  for (let i = 0; i < position.count; i++) {
+    const t = (position.getY(i) + height / 2) / height;
+    const angle = Math.atan2(position.getZ(i), position.getX(i));
+    const fold = 1 + Math.sin(t * Math.PI) * (Math.sin(angle * 6 + t * 13) * 0.038 + Math.sin(t * 28) * 0.018);
+    position.setX(i, position.getX(i) * fold);
+    position.setZ(i, position.getZ(i) * fold);
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
 
 export class LevVisual {
   readonly root = new THREE.Group();
@@ -13,10 +33,10 @@ export class LevVisual {
   private elapsed = 0;
 
   constructor() {
-    const jacket = new THREE.MeshStandardMaterial({ color: 0x151d24, roughness: 0.82, metalness: 0.08 });
-    const jacketPanel = new THREE.MeshStandardMaterial({ color: 0x222d35, roughness: 0.76, metalness: 0.12 });
-    const leather = new THREE.MeshStandardMaterial({ color: 0x52382d, roughness: 0.84, metalness: 0.05 });
-    const webbing = new THREE.MeshStandardMaterial({ color: 0x2f2824, roughness: 0.9, metalness: 0.02 });
+    const jacket = surfaceMaterial('fabric', 0x39464c);
+    const jacketPanel = surfaceMaterial('fabric', 0x4a5860);
+    const leather = surfaceMaterial('fabric', 0x6e5541);
+    const webbing = surfaceMaterial('fabric', 0x574e41);
     const metal = new THREE.MeshStandardMaterial({ color: 0x454b4d, roughness: 0.5, metalness: 0.72 });
     const glove = new THREE.MeshStandardMaterial({ color: 0x11171b, roughness: 0.9, metalness: 0.03 });
     const boot = new THREE.MeshStandardMaterial({ color: 0x15191b, roughness: 0.88, metalness: 0.08 });
@@ -82,16 +102,16 @@ export class LevVisual {
     webbing: THREE.Material,
     metal: THREE.Material,
   ): void {
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.43, 0.36, 0.98, 8), jacket);
+    const torso = new THREE.Mesh(garment(0.43, 0.36, 0.98), jacket);
     torso.position.y = 1.38;
     torso.scale.z = 0.72;
     this.torsoRoot.add(torso);
 
-    const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.18, 0.46), jacketPanel);
+    const shoulder = new THREE.Mesh(softBox(0.98, 0.18, 0.46), jacketPanel);
     shoulder.position.set(0, 1.72, 0.02);
     this.torsoRoot.add(shoulder);
 
-    const chestPanel = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.42, 0.09), jacketPanel);
+    const chestPanel = new THREE.Mesh(softBox(0.64, 0.42, 0.09), jacketPanel);
     chestPanel.position.set(0, 1.43, -0.34);
     chestPanel.rotation.x = -0.05;
     this.torsoRoot.add(chestPanel);
@@ -102,15 +122,15 @@ export class LevVisual {
     collar.rotation.z = -Math.PI * 0.72;
     this.torsoRoot.add(collar);
 
-    const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.34, 0.48), jacket);
+    const pelvis = new THREE.Mesh(softBox(0.68, 0.34, 0.48), jacket);
     pelvis.position.set(0, 0.82, 0.01);
     this.torsoRoot.add(pelvis);
 
-    const belt = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.12, 0.52), webbing);
+    const belt = new THREE.Mesh(softBox(0.78, 0.12, 0.52), webbing);
     belt.position.set(0, 0.92, 0.01);
     this.torsoRoot.add(belt);
 
-    const pouchGeometry = new THREE.BoxGeometry(0.17, 0.24, 0.13);
+    const pouchGeometry = softBox(0.17, 0.24, 0.13);
     const pouchPositions = [
       [-0.3, 0.78, 0.28], [-0.1, 0.76, 0.3], [0.13, 0.76, 0.3], [0.32, 0.79, 0.25],
     ] as const;
@@ -120,7 +140,7 @@ export class LevVisual {
       this.torsoRoot.add(pouch);
     }
 
-    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.1, 0.05), metal);
+    const buckle = new THREE.Mesh(softBox(0.13, 0.1, 0.05), metal);
     buckle.position.set(0, 0.91, -0.29);
     this.torsoRoot.add(buckle);
   }
@@ -130,17 +150,17 @@ export class LevVisual {
     neck.position.set(0, 1.88, 0);
     this.torsoRoot.add(neck);
 
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.245, 12, 9), skin);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.245, 24, 16), skin);
     head.position.set(0, 2.09, -0.015);
     head.scale.set(0.9, 1.05, 0.92);
     this.torsoRoot.add(head);
 
-    const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.255, 10, 7, 0, Math.PI * 2, 0, Math.PI * 0.58), hair);
+    const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.255, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.58), hair);
     hairCap.position.set(0, 2.16, 0.008);
     hairCap.rotation.x = -0.08;
     this.torsoRoot.add(hairCap);
 
-    const hoodBack = new THREE.Mesh(new THREE.SphereGeometry(0.33, 10, 7, 0, Math.PI * 2, 0.58, Math.PI * 0.58), hood);
+    const hoodBack = new THREE.Mesh(new THREE.SphereGeometry(0.33, 20, 14, 0, Math.PI * 2, 0.58, Math.PI * 0.58), hood);
     hoodBack.position.set(0, 1.88, 0.11);
     hoodBack.scale.set(1.05, 0.76, 0.7);
     this.torsoRoot.add(hoodBack);
@@ -157,11 +177,11 @@ export class LevVisual {
   ): void {
     pivot.position.set(x, 1.65, 0);
 
-    const shoulderPad = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.22, 0.42), jacketPanel);
+    const shoulderPad = new THREE.Mesh(softBox(0.26, 0.22, 0.42), jacketPanel);
     shoulderPad.position.set(side * 0.02, -0.03, 0.02);
     pivot.add(shoulderPad);
 
-    const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.135, 0.55, 7), jacket);
+    const upper = new THREE.Mesh(garment(0.12, 0.135, 0.55), jacket);
     upper.position.set(side * 0.02, -0.33, 0);
     upper.rotation.z = side * 0.05;
     pivot.add(upper);
@@ -170,16 +190,16 @@ export class LevVisual {
     elbow.position.set(side * 0.04, -0.61, 0.01);
     pivot.add(elbow);
 
-    const forearm = new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.115, 0.5, 7), jacket);
+    const forearm = new THREE.Mesh(garment(0.095, 0.115, 0.5), jacket);
     forearm.position.set(side * 0.07, -0.84, -0.005);
     forearm.rotation.z = side * 0.06;
     pivot.add(forearm);
 
-    const wristModule = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.17), metal);
+    const wristModule = new THREE.Mesh(softBox(0.18, 0.12, 0.17), metal);
     wristModule.position.set(side * 0.09, -1.04, 0.01);
     pivot.add(wristModule);
 
-    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.2, 0.14), glove);
+    const hand = new THREE.Mesh(softBox(0.16, 0.2, 0.14), glove);
     hand.position.set(side * 0.1, -1.17, -0.005);
     pivot.add(hand);
   }
@@ -193,21 +213,21 @@ export class LevVisual {
   ): void {
     pivot.position.set(x, 0.82, 0);
 
-    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.64, 7), trouser);
+    const thigh = new THREE.Mesh(garment(0.15, 0.17, 0.64), trouser);
     thigh.position.y = -0.32;
     thigh.scale.z = 0.85;
     pivot.add(thigh);
 
-    const knee = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.18, 0.23), panel);
+    const knee = new THREE.Mesh(softBox(0.26, 0.18, 0.23), panel);
     knee.position.set(0, -0.65, -0.08);
     pivot.add(knee);
 
-    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.13, 0.57, 7), trouser);
+    const shin = new THREE.Mesh(garment(0.105, 0.13, 0.57), trouser);
     shin.position.y = -0.95;
     shin.scale.z = 0.82;
     pivot.add(shin);
 
-    const bootMesh = new THREE.Mesh(new THREE.BoxGeometry(0.27, 0.22, 0.42), boot);
+    const bootMesh = new THREE.Mesh(softBox(0.27, 0.22, 0.42), boot);
     bootMesh.position.set(0, -1.23, -0.08);
     pivot.add(bootMesh);
   }
@@ -218,12 +238,12 @@ export class LevVisual {
     metal: THREE.Material,
     markMaterial: THREE.LineBasicMaterial,
   ): void {
-    const pack = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.78, 0.24), leather);
+    const pack = new THREE.Mesh(softBox(0.62, 0.78, 0.24), leather);
     pack.position.set(0, 1.36, 0.42);
     pack.rotation.x = -0.04;
     this.torsoRoot.add(pack);
 
-    const radio = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.34, 0.16), metal);
+    const radio = new THREE.Mesh(softBox(0.24, 0.34, 0.16), metal);
     radio.position.set(0.34, 1.46, 0.4);
     this.torsoRoot.add(radio);
 
@@ -233,7 +253,7 @@ export class LevVisual {
     this.torsoRoot.add(antenna);
 
     for (const x of [-0.27, 0.27]) {
-      const strap = new THREE.Mesh(new THREE.BoxGeometry(0.085, 1.0, 0.05), webbing);
+      const strap = new THREE.Mesh(softBox(0.085, 1.0, 0.05), webbing);
       strap.position.set(x, 1.38, 0.29);
       strap.rotation.z = x < 0 ? -0.12 : 0.12;
       this.torsoRoot.add(strap);

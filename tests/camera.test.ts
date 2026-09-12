@@ -28,13 +28,13 @@ function fixture(t: TestContext, aspect = 16 / 9) {
   return { physics, collider, camera, controller, position, box, update };
 }
 
-test('open landscape/portrait retain their authored framing and initialize without flying from world origin', (t) => {
-  for (const [aspect, distance] of [[16 / 9, 7.5], [0.5, 9.1]]) {
+test('landscape/portrait use their closer cinematic framing and initialize without flying from world origin', (t) => {
+  for (const [aspect, distance] of [[16 / 9, 6.2], [0.5, 8.2]]) {
     const s = fixture(t, aspect);
     s.position.set(0, 0.4, -73);
     s.update();
     assert.ok(Math.abs(s.camera.position.z - (-73 + Math.cos(-0.12) * distance)) < 1e-6);
-    assert.ok(Math.abs(s.camera.position.y - (0.4 + 1.45 + 3.1 + Math.sin(0.12) * 4)) < 1e-6);
+    assert.ok(Math.abs(s.camera.position.y - (0.4 + 1.45 + 2.25 + Math.sin(0.12) * 4)) < 1e-6);
   }
 });
 
@@ -43,7 +43,7 @@ test('the player capsule and sensor volumes do not collapse the camera', (t) => 
   s.physics.createCollider(RAPIER.ColliderDesc.cuboid(5, 5, 1).setTranslation(0, 2, 3).setSensor(true));
   s.physics.step();
   s.update();
-  assert.ok(s.camera.position.z > 7);
+  assert.ok(s.camera.position.z > 6);
 });
 
 test('a thin wall blocks the entire camera volume before its near plane reaches the surface', (t) => {
@@ -120,7 +120,7 @@ test('a saved-position teleport resets lag but still respects the destination wa
   assert.ok(s.camera.position.z > -70);
 });
 
-test('actual lighthouse and school camera envelopes protect walls, tower and beams without gameplay bodies', (t) => {
+test('actual lighthouse and school camera envelopes protect walls, roof, tower and beams without gameplay bodies', (t) => {
   const s = fixture(t);
   const world = new GameWorld(s.physics);
   const schoolOrigin = new THREE.Vector3(0, 0, -60);
@@ -133,7 +133,7 @@ test('actual lighthouse and school camera envelopes protect walls, tower and bea
   const rotation = { x: 0, y: 0, z: 0, w: 1 };
   const bodyCount = s.physics.bodies.len();
   const colliderCount = s.physics.colliders.len();
-  for (const [x, y, z] of [[0, 0, 24], [3, 0, 25], [0, 0.4, -73], [3.5, 0.4, -84]]) {
+  for (const [x, y, z] of [[0, 0, 24], [3, 0, 25], [8, 0, -7.2], [15.1, 0, -13], [0, 0.4, -73], [3.5, 0.4, -84]]) {
     s.position.set(x, y, z);
     for (let i = 0; i < 120; i++) {
       controller.update(s.position, i * Math.PI / 60, -0.12, 1 / 60);
@@ -146,5 +146,5 @@ test('actual lighthouse and school camera envelopes protect walls, tower and bea
   }
   assert.equal(s.physics.bodies.len(), bodyCount);
   assert.equal(s.physics.colliders.len(), colliderCount);
-  assert.equal(world.cameraObstacles.length, 10);
+  assert.equal(world.cameraObstacles.length, 11);
 });

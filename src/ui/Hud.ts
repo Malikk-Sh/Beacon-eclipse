@@ -29,7 +29,7 @@ export class Hud {
       <div id="game"></div>
       <div class="hud">
         <button class="pause" aria-label="Пауза">Ⅱ</button>
-        <div class="weather">☔ <span>22:47</span><small>9°C</small></div>
+        <div class="weather"><svg class="weather-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15a4 4 0 0 1-.4-8A6 6 0 0 1 17 6a4.5 4.5 0 0 1 1 9H6m1 3-1 3m6-3-1 3m6-3-1 3"/></svg><span>22:47</span><small>9°C</small></div>
         <div class="objective" id="objective"><span>◆</span><b>НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ</b></div>
         <div class="save-indicator hidden" id="saveIndicator">◇ СОХРАНЕНО</div>
         <div class="joystick" id="joystick"><div class="stick" id="stick"></div></div>

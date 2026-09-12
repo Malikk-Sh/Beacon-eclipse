@@ -1,7 +1,9 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { MaterialLibrary } from '../world/MaterialLibrary';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { EnergySystemName } from './EnergySystem';
-import type { CameraObstacle } from './ThirdPersonCamera';
+import { cameraBox, type CameraObstacle } from './ThirdPersonCamera';
 
 export interface WorldLandmarks {
   lighthousePanel: THREE.Vector3;
@@ -12,6 +14,7 @@ export interface WorldLandmarks {
 }
 
 export class GameWorld {
+  private readonly materials = new MaterialLibrary();
   readonly scene = new THREE.Scene();
   readonly cameraObstacles: CameraObstacle[] = [];
   readonly landmarks: WorldLandmarks = {
@@ -61,7 +64,7 @@ export class GameWorld {
 
     const floor = new THREE.Mesh(
       new THREE.PlaneGeometry(70, 100),
-      new THREE.MeshStandardMaterial({ color: 0x101923, roughness: 0.42, metalness: 0.35 }),
+      this.materials.wetGround,
     );
     floor.rotation.x = -Math.PI / 2;
     floor.position.z = -2;
@@ -80,7 +83,7 @@ export class GameWorld {
 
     this.lighthouseDoor = new THREE.Mesh(
       new THREE.BoxGeometry(2.05, 3.05, 0.24),
-      new THREE.MeshStandardMaterial({ color: 0x30383d, roughness: 0.6, metalness: 0.55 }),
+      this.materials.paintedMetal,
     );
     this.lighthouseDoor.position.set(0, 1.525, 17.65);
     this.lighthouseDoor.castShadow = true;
@@ -94,8 +97,8 @@ export class GameWorld {
     this.addBox(-2.2, 11.6, 0.1, 0.95, 9.4, 0x29363d, 0.18);
     this.addBox(2.2, 11.6, 0.1, 0.95, 9.4, 0x29363d, 0.18);
     const tower = new THREE.Mesh(
-      new THREE.CylinderGeometry(2.7, 3.25, 10, 12),
-      new THREE.MeshStandardMaterial({ color: 0x172128, roughness: 0.82, metalness: 0.18 }),
+      new THREE.CylinderGeometry(2.7, 3.25, 10, 48),
+      this.materials.wetConcrete,
     );
     tower.position.set(0, 9, 28.5);
     tower.castShadow = true;
@@ -110,11 +113,13 @@ export class GameWorld {
     beacon.position.set(0, 14.2, 28.5);
     this.scene.add(beacon);
 
-    // Port blockout: containers, Warehouse 04 and energy station.
+    // Structural shells retain the original collision dimensions and story landmarks.
     this.addBox(-9, -7, 5, 2.6, 12, 0x24313a);
     this.addBox(-3, -14, 8, 3.2, 4, 0x2b3438);
-    this.addBox(8, -13, 13, 5.5, 9, 0x1e252a);
-    this.addBox(2, -5, 5, 3, 4, 0x303b3f);
+    this.addBox(8, -13, 13, 5.5, 9, 0x627277).name = 'warehouse-shell';
+    // The pitched roof is visual only, but still occludes the camera.
+    this.cameraObstacles.push(cameraBox(new THREE.Vector3(8, 6.15, -13), 13.85, 1.4, 9.9));
+    this.addBox(2, -5, 5, 3, 4, 0x647a7d).name = 'energy-shell';
     for (let i = 0; i < 7; i++) {
       this.addBox(-11 + (i % 3) * 4, 4 + Math.floor(i / 3) * 5, 3.4, 2.4, 4.2, 0x27343d);
     }
@@ -125,7 +130,7 @@ export class GameWorld {
     this.bridgePivot.rotation.x = this.bridgeRaisedAngle;
     const bridgeDeck = new THREE.Mesh(
       new THREE.BoxGeometry(7, 0.45, 28),
-      new THREE.MeshStandardMaterial({ color: 0x202a31, roughness: 0.56, metalness: 0.52 }),
+      this.materials.wetGround,
     );
     bridgeDeck.position.set(0, 0.225, -14);
     bridgeDeck.castShadow = true;
@@ -135,7 +140,7 @@ export class GameWorld {
 
     this.bridgeBarrier = new THREE.Mesh(
       new THREE.BoxGeometry(7.1, 2.2, 0.34),
-      new THREE.MeshStandardMaterial({ color: 0x492523, roughness: 0.65, metalness: 0.5 }),
+      this.materials.warningPaint,
     );
     this.bridgeBarrier.position.set(0, 1.1, -18.2);
     this.bridgeBarrier.castShadow = true;
@@ -240,8 +245,10 @@ export class GameWorld {
 
   private addBox(x: number, z: number, sx: number, sy: number, sz: number, color: number, y = 0) {
     const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(sx, sy, sz),
-      new THREE.MeshStandardMaterial({ color, roughness: 0.72, metalness: 0.28 }),
+      new RoundedBoxGeometry(sx, sy, sz, 1, Math.min(0.045, sx * 0.08, sy * 0.08, sz * 0.08)),
+      color === 0x20272c ? this.materials.concrete : this.materials.structural(
+        new THREE.Color(color).lerp(new THREE.Color(0x7b8583), 0.28).getHex(),
+      ),
     );
     mesh.position.set(x, y + sy / 2, z);
     mesh.castShadow = true;

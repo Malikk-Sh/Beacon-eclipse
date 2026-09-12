@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { PortSurfaceDetails } from './PortSurfaceDetails';
 import { MaterialLibrary } from './MaterialLibrary';
 import { PortBridgeAtmosphere } from './PortBridgeAtmosphere';
 import { ScaleCueDressing } from './ScaleCueDressing';
@@ -7,20 +8,19 @@ import { LighthouseArea } from './areas/LighthouseArea';
 import { PortArea } from './areas/PortArea';
 
 export class WorldDressing {
+  private readonly waterNormal: THREE.Texture;
   private readonly portBridgeAtmosphere: PortBridgeAtmosphere;
 
   constructor(scene: THREE.Scene, materials: MaterialLibrary, bridgeRoot: THREE.Group) {
-    this.addWetPatch(scene, materials, -4, 13, 5, 9);
-    this.addWetPatch(scene, materials, 5, 1, 8, 7);
-    this.addWetPatch(scene, materials, -6, -9, 9, 10);
-    this.addWetPatch(scene, materials, 8, -13, 8, 5);
-    this.addWetPatch(scene, materials, 0, -25, 5.5, 19);
-
-    this.addWaterStrip(scene, materials, -28, -8, 12, 78);
-    this.addWaterStrip(scene, materials, 28, -8, 12, 78);
+    // A private transform shares the bitmap; it never moves concrete or school puddle normals.
+    this.waterNormal = materials.water.normalMap!.clone();
+    materials.water.normalMap = this.waterNormal;
+    materials.water.normalScale.set(0.85, 0.85);
+    this.addWaterStrip(scene, materials, 0, -60, 340, 320);
 
     new LighthouseArea(scene, materials);
     new PortArea(scene, materials);
+    new PortSurfaceDetails(scene, materials);
     new BridgeArea(scene, materials, bridgeRoot);
     new ScaleCueDressing(scene, materials);
     this.portBridgeAtmosphere = new PortBridgeAtmosphere(scene, materials, bridgeRoot);
@@ -29,45 +29,44 @@ export class WorldDressing {
 
   update(dt: number): void {
     this.portBridgeAtmosphere.update(dt);
+    this.waterNormal.offset.x = (this.waterNormal.offset.x + dt * 0.012) % 1;
+    this.waterNormal.offset.y = (this.waterNormal.offset.y + dt * 0.006) % 1;
   }
 
   private addDistantCity(scene: THREE.Scene, materials: MaterialLibrary): void {
-    const geometry = new THREE.BoxGeometry(1, 1, 1);
-    const city = new THREE.InstancedMesh(geometry, materials.structural(0x111d25), 14);
+    const city = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), materials.structural(0x3e5360), 108);
+    city.name = 'layered-harbor-skyline';
     const matrix = new THREE.Matrix4();
     const rotation = new THREE.Quaternion();
     const cyanWindows: THREE.Vector3[] = [];
     const amberWindows: THREE.Vector3[] = [];
-
-    for (let i = 0; i < 14; i++) {
-      const x = -25 + i * 4 + (i % 2) * 1.3;
-      const width = 2.5 + (i % 3);
-      const height = 5 + (i % 5) * 2.4;
-      const depth = 3 + (i % 2);
-      const z = -78 - (i % 3) * 5;
-      matrix.compose(
-        new THREE.Vector3(x, height / 2 - 0.4, z),
-        rotation,
-        new THREE.Vector3(width, height, depth),
-      );
-      city.setMatrixAt(i, matrix);
-
-      const floors = Math.min(3, Math.max(1, Math.floor((height - 1.5) / 2.1)));
-      for (let floor = 0; floor < floors; floor++) {
-        const y = 1.25 + floor * 1.9;
-        for (let column = 0; column < 2; column++) {
-          const windowX = x + (column === 0 ? -width * 0.22 : width * 0.22);
-          const windowZ = z + depth / 2 + 0.03;
-          const destination = (i + floor * 2 + column) % 7 === 0 ? amberWindows : cyanWindows;
-          destination.push(new THREE.Vector3(windowX, y, windowZ));
+    let index = 0;
+    for (let i = 0; i < 54; i++) {
+      const layer = Math.floor(i / 18);
+      const x = -113 + (i % 18) * 13.3 + layer * 3.7;
+      const width = 4.5 + (i * 7 % 5) * 1.2;
+      const height = 8 + (i * 13 % 23) + layer * 4;
+      const depth = 5 + i % 3;
+      const z = -116 - layer * 23 - (i % 3) * 4;
+      matrix.compose(new THREE.Vector3(x, height / 2 - 0.3, z), rotation, new THREE.Vector3(width, height, depth));
+      city.setMatrixAt(index++, matrix);
+      const crownHeight = 1.5 + i % 5;
+      matrix.compose(new THREE.Vector3(x + width * 0.1, height + crownHeight / 2 - 0.3, z), rotation,
+        new THREE.Vector3(width * 0.55, crownHeight, depth * 0.6));
+      city.setMatrixAt(index++, matrix);
+      for (let floor = 0; floor < Math.floor(height / 1.6); floor++) {
+        for (let column = 0; column < 4; column++) {
+          const pattern = (i * 31 + floor * 17 + column * 7) % 19;
+          if (pattern > 6) continue;
+          const destination = pattern < 2 ? amberWindows : cyanWindows;
+          destination.push(new THREE.Vector3(x + (column - 1.5) * width * 0.2, 1.1 + floor * 1.6, z + depth / 2 + 0.03));
         }
       }
     }
-    city.receiveShadow = true;
+    city.instanceMatrix.setUsage(THREE.StaticDrawUsage);
     scene.add(city);
-
-    this.addCityWindows(scene, cyanWindows, 0x6bb9d8, 0x2d86ae, 2.25);
-    this.addCityWindows(scene, amberWindows, 0xd19858, 0xb65e27, 1.9);
+    this.addCityWindows(scene, cyanWindows, 0xadc4ce, 0x63879c, 0.9);
+    this.addCityWindows(scene, amberWindows, 0xd3b383, 0xaa7443, 1.0);
   }
 
   private addCityWindows(
@@ -97,21 +96,6 @@ export class WorldDressing {
     scene.add(windows);
   }
 
-  private addWetPatch(
-    scene: THREE.Scene,
-    materials: MaterialLibrary,
-    x: number,
-    z: number,
-    sx: number,
-    sz: number,
-  ): void {
-    const patch = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz), materials.wetPatch);
-    patch.rotation.x = -Math.PI / 2;
-    patch.position.set(x, 0.012, z);
-    patch.receiveShadow = true;
-    scene.add(patch);
-  }
-
   private addWaterStrip(
     scene: THREE.Scene,
     materials: MaterialLibrary,
@@ -122,7 +106,8 @@ export class WorldDressing {
   ): void {
     const water = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz), materials.water);
     water.rotation.x = -Math.PI / 2;
-    water.position.set(x, 0.018, z);
+    water.position.set(x, -0.16, z);
+    water.name = 'harbor-water';
     water.receiveShadow = true;
     scene.add(water);
   }
