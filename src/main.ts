@@ -85,8 +85,9 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'hi
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.86;
+renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+visualFoundation.initializeRenderer(renderer);
 hud.gameContainer.appendChild(renderer.domElement);
 
 const qualityPresets: Record<GraphicsQuality, { pixelRatio: number; shadows: boolean }> = {

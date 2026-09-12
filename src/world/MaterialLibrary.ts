@@ -1,71 +1,18 @@
 import * as THREE from 'three';
+import { surfaceMaterial, puddleMaterial } from './SurfaceTextures';
 
 export class MaterialLibrary {
-  readonly wetGround = new THREE.MeshStandardMaterial({
-    color: 0x0e1a22,
-    roughness: 0.3,
-    metalness: 0.15,
-  });
-
-  readonly wetPatch = new THREE.MeshStandardMaterial({
-    color: 0x12242e,
-    roughness: 0.18,
-    metalness: 0.18,
-  });
-
-  readonly concrete = new THREE.MeshStandardMaterial({
-    color: 0x202a30,
-    roughness: 0.78,
-    metalness: 0.06,
-  });
-
-  readonly wetConcrete = new THREE.MeshStandardMaterial({
-    color: 0x1b282f,
-    roughness: 0.42,
-    metalness: 0.08,
-  });
-
-  readonly paintedMetal = new THREE.MeshStandardMaterial({
-    color: 0x27343b,
-    roughness: 0.47,
-    metalness: 0.52,
-  });
-
-  readonly fadedPaint = new THREE.MeshStandardMaterial({
-    color: 0x707b7a,
-    roughness: 0.66,
-    metalness: 0.3,
-  });
-
-  readonly oldSteel = new THREE.MeshStandardMaterial({
-    color: 0x2b373d,
-    roughness: 0.62,
-    metalness: 0.62,
-  });
-
-  readonly darkSteel = new THREE.MeshStandardMaterial({
-    color: 0x152129,
-    roughness: 0.56,
-    metalness: 0.68,
-  });
-
-  readonly rust = new THREE.MeshStandardMaterial({
-    color: 0x633b2d,
-    roughness: 0.78,
-    metalness: 0.24,
-  });
-
-  readonly warningPaint = new THREE.MeshStandardMaterial({
-    color: 0x70402b,
-    roughness: 0.56,
-    metalness: 0.42,
-  });
-
-  readonly lanePaint = new THREE.MeshStandardMaterial({
-    color: 0x9c8756,
-    roughness: 0.7,
-    metalness: 0.04,
-  });
+  readonly wetPatch = puddleMaterial();
+  readonly wetGround = surfaceMaterial('ground', 0x59636a);
+  readonly concrete = surfaceMaterial('concrete', 0x737c7c);
+  readonly wetConcrete = surfaceMaterial('concrete', 0x57676c);
+  readonly paintedMetal = surfaceMaterial('steel', 0x566970, 0.28);
+  readonly fadedPaint = surfaceMaterial('steel', 0xa5aaa0, 0.18);
+  readonly oldSteel = surfaceMaterial('steel', 0x66757b, 0.72);
+  readonly darkSteel = surfaceMaterial('steel', 0x35464f, 0.55);
+  readonly rust = surfaceMaterial('steel', 0x85583c, 0.12);
+  readonly warningPaint = surfaceMaterial('steel', 0xad693b, 0.16);
+  readonly lanePaint = surfaceMaterial('concrete', 0xbaab7d);
 
   readonly beaconHousing = new THREE.MeshStandardMaterial({
     color: 0xa7c4cf,
@@ -103,27 +50,20 @@ export class MaterialLibrary {
     color: 0x88aab8,
     roughness: 0.12,
     metalness: 0,
-    transmission: 0.18,
+    // Reflective glass avoids a full-scene transmission pass on phones.
+    transmission: 0,
     transparent: true,
     opacity: 0.72,
   });
 
-  readonly water = new THREE.MeshStandardMaterial({
-    color: 0x0a1821,
-    roughness: 0.17,
-    metalness: 0.28,
-  });
+  readonly water = surfaceMaterial('water', 0x36515a, 0.18);
 
   private readonly structuralCache = new Map<number, THREE.MeshStandardMaterial>();
 
   structural(color: number): THREE.MeshStandardMaterial {
     const cached = this.structuralCache.get(color);
     if (cached) return cached;
-    const material = new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.62,
-      metalness: 0.34,
-    });
+    const material = surfaceMaterial('steel', color, 0.28);
     this.structuralCache.set(color, material);
     return material;
   }

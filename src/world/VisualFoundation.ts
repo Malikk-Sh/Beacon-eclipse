@@ -5,13 +5,16 @@ import { LightingRig } from './LightingRig';
 import { MaterialLibrary } from './MaterialLibrary';
 import { SchoolDetailDressing } from './SchoolDetailDressing';
 import { WeatherSystem, type VisualQuality } from './WeatherSystem';
+import { StormEnvironment } from './StormEnvironment';
+import { projectSurfaceUVs } from './SurfaceTextures';
 import { WorldDressing } from './WorldDressing';
 
 export class VisualFoundation {
   private readonly weather: WeatherSystem;
+  private readonly environment: StormEnvironment;
   private readonly dressing: WorldDressing;
 
-  constructor(scene: THREE.Scene) {
+  constructor(private readonly scene: THREE.Scene) {
     this.removePrototypeEnvironment(scene);
 
     const bridgeRoot = scene.getObjectByName('bridge-visual-root');
@@ -19,10 +22,27 @@ export class VisualFoundation {
 
     const materials = new MaterialLibrary();
     new LightingRig(scene);
+    this.environment = new StormEnvironment(scene);
     this.dressing = new WorldDressing(scene, materials, bridgeRoot);
     new SchoolDetailDressing(scene, materials);
     this.weather = new WeatherSystem(scene, () => audioSystem.playThunder());
     new RuntimePerformanceOverlay();
+  }
+
+  initializeRenderer(renderer: THREE.WebGLRenderer): void {
+    this.environment.initialize(renderer);
+    const anisotropy = Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    this.scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const materials = Array.isArray(object.material) ? object.material : [object.material];
+      for (const material of materials) {
+        if (!(material instanceof THREE.MeshStandardMaterial) || !material.userData.surfaceKind) continue;
+        projectSurfaceUVs(object.geometry, material.userData.surfaceKind === 'fabric' ? 0.7 : 3);
+        for (const map of [material.map, material.normalMap, material.roughnessMap]) {
+          if (map) map.anisotropy = anisotropy;
+        }
+      }
+    });
   }
 
   setQuality(quality: VisualQuality): void {

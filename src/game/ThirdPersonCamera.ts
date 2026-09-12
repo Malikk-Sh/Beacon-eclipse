@@ -43,10 +43,10 @@ export class ThirdPersonCamera {
     this.target.copy(playerPosition);
     this.target.y += 1.45;
     const portraitFraming = THREE.MathUtils.clamp((0.9 - this.camera.aspect) / 0.4, 0, 1);
-    const distance = THREE.MathUtils.lerp(7.5, 9.1, portraitFraming);
+    const distance = THREE.MathUtils.lerp(6.2, 8.2, portraitFraming);
     this.desired.set(
       this.target.x + Math.sin(yaw) * Math.cos(pitch) * distance,
-      this.target.y + 3.1 + Math.sin(-pitch) * 4,
+      this.target.y + 2.25 + Math.sin(-pitch) * 4,
       this.target.z + Math.cos(yaw) * Math.cos(pitch) * distance,
     );
 

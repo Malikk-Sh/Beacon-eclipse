@@ -28,7 +28,7 @@ export class WeatherSystem {
       new THREE.LineBasicMaterial({
         color: 0xa9d0e8,
         transparent: true,
-        opacity: 0.34,
+        opacity: 0.2,
         depthWrite: false,
       }),
     );
@@ -100,8 +100,8 @@ export class WeatherSystem {
     this.positions[offset] = x;
     this.positions[offset + 1] = y;
     this.positions[offset + 2] = z;
-    this.positions[offset + 3] = x + 0.22;
-    this.positions[offset + 4] = y + 0.78;
+    this.positions[offset + 3] = x + 0.11;
+    this.positions[offset + 4] = y + 0.44;
     this.positions[offset + 5] = z - 0.04;
   }
 }

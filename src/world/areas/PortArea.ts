@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { MaterialLibrary } from '../MaterialLibrary';
 
 type BoxSpec = readonly [x: number, z: number, sx: number, sy: number, sz: number];
@@ -15,7 +16,7 @@ export class PortArea {
     const facade = this.box(scene, materials.paintedMetal, 8, 2.85, -8.43, 13.1, 5.45, 0.18);
     facade.receiveShadow = true;
 
-    const roofLip = this.box(scene, materials.darkSteel, 8, 5.64, -13, 13.7, 0.22, 9.5);
+    const roofLip = this.box(scene, materials.darkSteel, 8, 5.51, -13, 13.7, 0.12, 9.5);
     roofLip.castShadow = true;
 
     const ribGeometry = new THREE.BoxGeometry(0.08, 5.15, 0.18);
@@ -49,7 +50,7 @@ export class PortArea {
     const ventGeometry = new THREE.BoxGeometry(0.9, 0.42, 0.9);
     const vents = new THREE.InstancedMesh(ventGeometry, materials.oldSteel, 3);
     [4.2, 8, 11.7].forEach((x, index) => {
-      matrix.makeTranslation(x, 5.92, -13.6 + (index % 2) * 1.1);
+      matrix.makeTranslation(x, 6.85 - Math.abs(x - 8) * 0.153, -13.6 + (index % 2) * 1.1);
       vents.setMatrixAt(index, matrix);
     });
     vents.castShadow = true;
@@ -381,7 +382,10 @@ export class PortArea {
     sy: number,
     sz: number,
   ): THREE.Mesh {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), material);
+    const geometry = Math.min(sx, sy, sz) >= 0.14
+      ? new RoundedBoxGeometry(sx, sy, sz, 1, Math.min(0.04, sx * 0.1, sy * 0.1, sz * 0.1))
+      : new THREE.BoxGeometry(sx, sy, sz);
+    const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(x, y, z);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
