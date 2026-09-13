@@ -2,9 +2,6 @@ name: BrowserStack Mobile Smoke
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - feature/mobile-playwright-e2e
 
 jobs:
   real-device-smoke:
