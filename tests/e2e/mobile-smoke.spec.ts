@@ -118,14 +118,15 @@ test('mobile WebGL smoke journey', async ({ page }) => {
   await test.step('runtime audit exposes viewport and canvas metrics', async () => {
     const audit = page.locator('[data-runtime-performance="true"]');
     await expect(audit).toBeVisible();
-    await expect(audit).toContainText('RUNTIME AUDIT');
-    await expect(audit).toContainText('FPS avg');
-    await expect(audit).toContainText('viewport');
-    await expect(audit).toContainText('canvas CSS');
-    await expect(audit).toContainText('effective pixel ratio');
 
-    const text = await audit.textContent();
-    expect(text).toMatch(/FPS avg \d+(?:\.\d+)?/);
+    // The Chromium project runs through software WebGL on GitHub-hosted Linux. Wait
+    // for the overlay to record an actual requestAnimationFrame sample rather than
+    // assuming desktop-like frame cadence after the production reload.
+    await expect.poll(async () => (await audit.textContent()) ?? '', { timeout: 45_000 })
+      .toMatch(/RUNTIME AUDIT[\s\S]*FPS avg \d+(?:\.\d+)?[\s\S]*sample [1-9]\d*\/180/);
+
+    const text = (await audit.textContent()) ?? '';
+    expect(text).toContain('effective pixel ratio');
     expect(text).toMatch(/viewport \d+x\d+/);
     expect(text).toMatch(/canvas CSS \d+x\d+\s+\|\s+buffer \d+x\d+/);
   });
