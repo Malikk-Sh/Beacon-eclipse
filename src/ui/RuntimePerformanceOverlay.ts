@@ -54,7 +54,10 @@ export class RuntimePerformanceOverlay {
 
     if (document.visibilityState === 'visible' && this.lastTimestamp !== null) {
       const frameMs = timestamp - this.lastTimestamp;
-      if (frameMs > 0 && frameMs <= 500) this.recordSample(frameMs);
+      // A visible multi-hundred-millisecond frame is precisely the kind of stall this
+      // audit exists to expose. Background tabs are handled by visibilitychange, so do
+      // not discard very slow visible frames and accidentally leave the overlay empty.
+      if (frameMs > 0) this.recordSample(frameMs);
     }
     this.lastTimestamp = timestamp;
 

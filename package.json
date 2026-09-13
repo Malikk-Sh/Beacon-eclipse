@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "node --import tsx --test tests/*.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:browserstack": "playwright test --config=playwright.browserstack.config.ts",
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0"
