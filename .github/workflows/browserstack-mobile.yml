@@ -2,6 +2,9 @@ name: BrowserStack Mobile Smoke
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/mobile-playwright-e2e
 
 jobs:
   real-device-smoke:
@@ -37,7 +40,7 @@ jobs:
         run: npm install --no-save @playwright/test@1.59.1 browserstack-node-sdk@latest
 
       - name: Run smoke suite on real mobile devices
-        run: npx browserstack-node-sdk "npm run test:e2e:browserstack"
+        run: npx browserstack-node-sdk playwright test --config=playwright.browserstack.config.ts
 
       - name: Upload local Playwright artifacts
         if: always()
