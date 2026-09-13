@@ -97,6 +97,7 @@ const recoveredOnLoad = traversal.restore(storyState.player.position) || saves.r
 soyka.reset(player.position);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+let renderRequested = true;
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -112,6 +113,7 @@ const qualityPresets: Record<GraphicsQuality, { pixelRatio: number; shadows: boo
 };
 
 function applyGraphicsQuality(quality: GraphicsQuality) {
+  renderRequested = true;
   const preset = qualityPresets[quality];
   renderer.setPixelRatio(Math.min(devicePixelRatio, preset.pixelRatio));
   renderer.shadowMap.enabled = preset.shadows;
@@ -142,6 +144,7 @@ let gameElapsed = 0;
 let cameraMode: CameraMode = 'third';
 
 function setCameraMode(mode: CameraMode, save = true): void {
+  renderRequested = true;
   cameraMode = mode;
   hud.setCameraMode(mode);
   input.setFirstPerson(mode === 'first');
@@ -152,6 +155,8 @@ function setCameraMode(mode: CameraMode, save = true): void {
   cameraController.reset();
   firstPersonCamera.reset();
   pitch = mode === 'first' ? 0 : -0.12;
+  if (mode === 'first') firstPersonCamera.update(player.position, yaw, pitch, 0);
+  else cameraController.update(player.position, yaw, pitch, 1 / 60);
   pauseMenu.cameraSelect.value = mode;
   if (save) { settings.cameraMode = mode; settingsStore.save(settings); }
 }
@@ -218,6 +223,7 @@ function persist(showIndicator = false) {
 function setPaused(next: boolean) {
   if (!journeyStarted || sliceEnded || paused === next) return;
   paused = next;
+  renderRequested = true;
   input.setEnabled(!paused && !hud.isEnergyOpen && !cutoff.isOpen);
   hud.setPaused(paused);
   cutoff.setPaused(paused);
@@ -769,7 +775,11 @@ function animate() {
     visualFoundation.update(dt, player.position);
     harbor.update(dt);
   }
-  renderer.render(world.scene, camera);
+  // Paused geometry is static. Redraw only for a resize or an explicit settings change.
+  if (!paused || renderRequested) {
+    renderer.render(world.scene, camera);
+    renderRequested = false;
+  }
 }
 
 animate();
@@ -782,6 +792,7 @@ addEventListener('visibilitychange', () => {
 });
 addEventListener('pagehide', () => persist(false));
 addEventListener('resize', () => {
+  renderRequested = true;
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);

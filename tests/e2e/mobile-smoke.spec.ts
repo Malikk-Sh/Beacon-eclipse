@@ -130,6 +130,13 @@ test('mobile WebGL smoke journey', async ({ page }) => {
 test('mobile settings survive a production reload', async ({ page }) => {
   const pageErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
+  // The separate visual journey covers the default medium-quality boot. Start this
+  // two-boot functional journey at low quality, without overwriting settings on reload.
+  await page.addInitScript(() => {
+    if (!localStorage.getItem('beacon-eclipse.settings.v1')) {
+      localStorage.setItem('beacon-eclipse.settings.v1', JSON.stringify({ quality: 'low' }));
+    }
+  });
   await page.goto('/?perf=1', { waitUntil: 'domcontentloaded' });
   await waitForGame(page);
 
@@ -143,6 +150,8 @@ test('mobile settings survive a production reload', async ({ page }) => {
     await expect(page.getByRole('dialog', { name: 'Пауза и настройки' })).toBeVisible();
 
     const quality = page.locator('#qualitySelect');
+    await quality.selectOption('medium');
+    await expectSelectValue(quality, 'medium');
     await quality.selectOption('low');
     await page.locator('#cameraSelect').selectOption('first');
     await page.locator('#headMotion').uncheck();
