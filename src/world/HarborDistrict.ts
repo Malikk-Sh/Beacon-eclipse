@@ -4,6 +4,8 @@ import { MaterialLibrary } from './MaterialLibrary';
 import { HARBOR_FLOORS } from './HarborLayout';
 
 export const HARBOR_DISCOVERIES = [
+  { id: 'coastal-survey', title: 'БЕРЕГОВОЙ ПОСТ — ПЕЛЕНГ СИГНАЛА', x: -19, z: 32,
+    speaker: 'МАРА', text: 'Каждые семнадцать секунд. Смотритель отмечал направление до самого отключения. Все линии сходятся у школы. Он тоже пытался понять, кто там остался.' },
   { id: 'watch-log', title: 'ЖУРНАЛ СМОТРИТЕЛЯ', x: -2.55, z: 28,
     speaker: 'ЛЕВ', text: '«22:16. Паром ушёл пустым. Свет в школе всё ещё горит». Последняя запись. Чернила не успели высохнуть.' },
   { id: 'harbor-receiver', title: 'ПРИЧАЛ 02 — ПРОВЕРИТЬ ПРИЁМНИК', x: -50, z: 5.1,

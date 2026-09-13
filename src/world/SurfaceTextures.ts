@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-export type SurfaceKind = 'ground' | 'concrete' | 'steel' | 'fabric' | 'water';
+export type SurfaceKind = 'ground' | 'concrete' | 'steel' | 'fabric' | 'water' | 'masonry' | 'wood';
 export interface SurfaceTextures {
   color: THREE.DataTexture;
   roughness: THREE.DataTexture;
@@ -91,6 +91,21 @@ export function getSurfaceTextures(kind: SurfaceKind): SurfaceTextures {
         value = 0.83 + broad * 0.12 + weave;
         relief = weave + medium * 0.025;
         rough = 0.83 + grain * 0.12;
+      } else if (kind === 'masonry') {
+        const row = Math.floor(v * 8);
+        const brickU = ((u * 4 + (row % 2) * 0.5) % 1 + 1) % 1;
+        const brickV = (v * 8) % 1;
+        const mortar = brickU < 0.035 || brickU > 0.965 || brickV < 0.075 || brickV > 0.925;
+        const brick = hash(Math.floor(u * 4 + (row % 2) * 0.5) % 4, row, 57);
+        value = mortar ? 0.55 : 0.68 + brick * 0.24 + grain * 0.08;
+        relief = mortar ? -0.15 : medium * 0.06 + grain * 0.03;
+        rough = 0.78 + grain * 0.15;
+      } else if (kind === 'wood') {
+        const grainLine = Math.sin((u * 52 + Math.sin(v * Math.PI * 4) * 0.17 + medium * 0.1) * Math.PI * 2);
+        const plankSeam = (u * 4) % 1 < 0.025;
+        value = 0.71 + broad * 0.18 + grainLine * 0.055 - (plankSeam ? 0.25 : 0);
+        relief = grainLine * 0.012 - (plankSeam ? 0.08 : 0);
+        rough = 0.7 + medium * 0.18;
       } else {
         value = 0.86 + medium * 0.12;
         rough = 0.4 + medium * 0.17;

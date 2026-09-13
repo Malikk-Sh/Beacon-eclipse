@@ -61,7 +61,8 @@ export class WeatherSystem {
 
       const roof = Math.abs(x) < 4.3 && z > 17.5 && z < 34.2 ? 4.5
         : Math.abs(x) < 5.5 && z < -60 && z > -94 ? 4.7
-          : x > 43.8 && x < 50.2 && z > -6.3 && z < 0.3 ? 3.5 : 0;
+          : x > -22.4 && x < -15.6 && z > 27.6 && z < 34.4 ? 3.8
+            : x > 43.8 && x < 50.2 && z > -6.3 && z < 0.3 ? 3.5 : 0;
       if (y < roof || Math.abs(x - this.focus.x) > 38 || Math.abs(z - this.focus.z) > 38) {
         this.resetStreak(i, 25 + Math.random() * 4);
         continue;

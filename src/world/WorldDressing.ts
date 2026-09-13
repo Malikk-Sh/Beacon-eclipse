@@ -10,12 +10,15 @@ import { PortArea } from './areas/PortArea';
 export class WorldDressing {
   private readonly waterNormal: THREE.Texture;
   private readonly portBridgeAtmosphere: PortBridgeAtmosphere;
+  private waterGeometry?: THREE.PlaneGeometry;
+  private waterTime = 0;
 
   constructor(scene: THREE.Scene, materials: MaterialLibrary, bridgeRoot: THREE.Group) {
     // A private transform shares the bitmap; it never moves concrete or school puddle normals.
     this.waterNormal = materials.water.normalMap!.clone();
     materials.water.normalMap = this.waterNormal;
     materials.water.normalScale.set(0.85, 0.85);
+    materials.water.roughness = 0.78;
     this.addWaterStrip(scene, materials, 0, -60, 340, 320);
 
     new LighthouseArea(scene, materials);
@@ -31,6 +34,22 @@ export class WorldDressing {
     this.portBridgeAtmosphere.update(dt);
     this.waterNormal.offset.x = (this.waterNormal.offset.x + dt * 0.012) % 1;
     this.waterNormal.offset.y = (this.waterNormal.offset.y + dt * 0.006) % 1;
+    this.waterTime += dt;
+    if (this.waterGeometry) {
+      const positions = this.waterGeometry.getAttribute('position');
+      const normals = this.waterGeometry.getAttribute('normal');
+      for (let i = 0; i < positions.count; i++) {
+        const a = positions.getX(i) * 0.25 + positions.getY(i) * 0.18 + this.waterTime * 0.8;
+        const b = positions.getY(i) * 0.42 - positions.getX(i) * 0.1 - this.waterTime * 1.15;
+        // Crests remain below the quay. Normal-map wind ripples sit on these broad swells.
+        positions.setZ(i, Math.sin(a) * 0.065 + Math.sin(b) * 0.025);
+        const nx = -Math.cos(a) * 0.01625 + Math.cos(b) * 0.0025;
+        const ny = -Math.cos(a) * 0.0117 - Math.cos(b) * 0.0105;
+        const length = Math.hypot(nx, ny, 1);
+        normals.setXYZ(i, nx / length, ny / length, 1 / length);
+      }
+      positions.needsUpdate = normals.needsUpdate = true;
+    }
   }
 
   private addDistantCity(scene: THREE.Scene, materials: MaterialLibrary): void {
@@ -104,7 +123,10 @@ export class WorldDressing {
     sx: number,
     sz: number,
   ): void {
-    const water = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz), materials.water);
+    this.waterGeometry = new THREE.PlaneGeometry(sx, sz, 64, 64);
+    (this.waterGeometry.getAttribute('position') as THREE.BufferAttribute).setUsage(THREE.DynamicDrawUsage);
+    (this.waterGeometry.getAttribute('normal') as THREE.BufferAttribute).setUsage(THREE.DynamicDrawUsage);
+    const water = new THREE.Mesh(this.waterGeometry, materials.water);
     water.rotation.x = -Math.PI / 2;
     water.position.set(x, -0.16, z);
     water.name = 'harbor-water';

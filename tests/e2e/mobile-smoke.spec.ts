@@ -144,6 +144,8 @@ test('mobile settings survive a production reload', async ({ page }) => {
 
     const quality = page.locator('#qualitySelect');
     await quality.selectOption('low');
+    await page.locator('#cameraSelect').selectOption('first');
+    await page.locator('#headMotion').uncheck();
     // BrowserStack's iOS Playwright bridge does not support locator.toHaveValue().
     // Read the native select value instead so the same persistence assertion remains portable.
     await expectSelectValue(quality, 'low');
@@ -151,8 +153,11 @@ test('mobile settings survive a production reload', async ({ page }) => {
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await waitForGame(page);
+    await expect(page.locator('#app')).toHaveAttribute('data-camera', 'first');
     await activateButton(pauseButton);
     await expectSelectValue(page.locator('#qualitySelect'), 'low');
+    await expectSelectValue(page.locator('#cameraSelect'), 'first');
+    await expect(page.locator('#headMotion')).not.toBeChecked();
     await activateButton(continueButton);
   });
 
@@ -179,6 +184,44 @@ test('mobile settings survive a production reload', async ({ page }) => {
 // Keep the production reload/settings journey independent: software WebGL on CI
 // must not consume the orientation test's budget before it starts.
 if (!browserStackRun) {
+  test('first-person touch toggle, portrait layout and dialogue audio controls', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => {
+      if (message.type() === 'error' && /WebGLProgram|Shader Error|VALIDATE_STATUS/.test(message.text())) errors.push(message.text());
+    });
+    await page.addInitScript(() => {
+      localStorage.setItem('beacon-eclipse.settings.v1', JSON.stringify({ quality: 'low', cameraMode: 'first', headMotion: false, voiceVolume: 0 }));
+    });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await waitForGame(page);
+    const button = page.getByRole('button', { name: 'Сменить вид (V)' });
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('#aimReticle')).toBeVisible();
+    await page.setViewportSize({ width: 390, height: 844 });
+    const rect = await button.boundingBox();
+    expect(rect).not.toBeNull();
+    await page.touchscreen.tap(rect!.x + rect!.width / 2, rect!.y + rect!.height / 2);
+    await expect(page.locator('#app')).toHaveAttribute('data-camera', 'third');
+    await expect(page.locator('#aimReticle')).toBeHidden();
+    await page.touchscreen.tap(rect!.x + rect!.width / 2, rect!.y + rect!.height / 2);
+    await expect(button).toHaveAttribute('aria-pressed', 'true');
+    const controls = await page.evaluate(() => ['.pause', '#cameraButton', '#joystick', '#soykaButton', '#jumpButton'].map(selector => {
+      const rect = document.querySelector(selector)!.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    }));
+    for (const [i, a] of controls.entries()) {
+      expect(a.x).toBeGreaterThanOrEqual(0); expect(a.y).toBeGreaterThanOrEqual(0);
+      expect(a.x + a.width).toBeLessThanOrEqual(391); expect(a.y + a.height).toBeLessThanOrEqual(845);
+      expect(a.width).toBeGreaterThanOrEqual(44); expect(a.height).toBeGreaterThanOrEqual(44);
+      for (const b of controls.slice(i + 1)) expect(a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y).toBe(false);
+    }
+    await page.screenshot({ path: test.info().outputPath('first-person-portrait.png'), scale: 'css' });
+    await activateButton(page.getByRole('button', { name: 'Пауза' }));
+    await expect(page.getByRole('slider', { name: 'Голосовые звуки' })).toHaveValue('0');
+    expect(errors).toEqual([]);
+  });
+
   test('mobile orientation and trusted joystick input', async ({ page }) => {
     const pageErrors: string[] = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));

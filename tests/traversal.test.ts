@@ -6,6 +6,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { GameWorld } from '../src/game/World';
 import { SchoolArea } from '../src/world/areas/SchoolArea';
 import { HarborDistrict } from '../src/world/HarborDistrict';
+import { WorldDetailPass } from '../src/world/WorldDetailPass';
 import { InputController } from '../src/game/InputController';
 import { SaveSystem } from '../src/game/SaveSystem';
 import { createDefaultStoryState } from '../src/game/StoryState';
@@ -27,6 +28,7 @@ function fixture(t: TestContext, bridge = true) {
   world.unlockLighthouseDoor(true);
   if (bridge) world.startBridge(true);
   new SchoolArea(new THREE.Group(), physics, new THREE.Vector3(0, 0, -60));
+  new WorldDetailPass(world.scene, physics);
   const state = createDefaultStoryState();
   state.progress.lighthousePowered = true;
   state.progress.bridgeStarted = bridge;

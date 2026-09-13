@@ -1,4 +1,6 @@
 import { EnergySystem, EnergySystemName } from '../game/EnergySystem';
+import type { CameraMode } from '../game/SettingsStore';
+import { icon } from './Icons';
 
 interface DialogueChoiceView {
   id: string;
@@ -12,6 +14,8 @@ export class Hud {
   readonly interactButton: HTMLButtonElement;
   readonly soykaButton: HTMLButtonElement;
   readonly jumpButton: HTMLButtonElement;
+  readonly cameraButton: HTMLButtonElement;
+  private heading = -1;
   private noticeTimer = 0;
   readonly energyPanel: HTMLElement;
   readonly dialogue: HTMLElement;
@@ -30,20 +34,24 @@ export class Hud {
     root.innerHTML = `
       <div id="game"></div>
       <div class="hud">
-        <button class="pause" aria-label="Пауза">Ⅱ</button>
-        <div class="weather"><svg class="weather-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15a4 4 0 0 1-.4-8A6 6 0 0 1 17 6a4.5 4.5 0 0 1 1 9H6m1 3-1 3m6-3-1 3m6-3-1 3"/></svg><span>22:47</span><small>9°C</small></div>
-        <div class="objective" id="objective"><span>◆</span><b>НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ</b></div>
-        <div class="save-indicator hidden" id="saveIndicator">◇ СОХРАНЕНО</div>
+        <button class="pause" aria-label="Пауза">${icon('pause')}</button>
+        <div class="weather">${icon('rain')}<span>22:47<small>ШТОРМ · 9°C</small></span></div>
+        <div class="objective" id="objective"><span class="objective-mark">${icon('power')}</span><div><small>ГЛАВА I / ПОСЛЕДНИЙ СИГНАЛ</small><b>НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ</b></div></div>
+        <div class="heading-strip" aria-hidden="true"><span>N</span><i></i><span id="headingValue">000°</span><i></i><span>СЕВЕРНЫЙ ПОРТ</span></div>
+        <button class="camera-button" id="cameraButton" aria-label="Сменить вид (V)" aria-pressed="false">${icon('camera')}<span id="cameraModeLabel">III</span><kbd>V</kbd></button>
+        <div class="aim-reticle hidden" id="aimReticle" aria-hidden="true"></div>
+        <div class="save-indicator hidden" id="saveIndicator">${icon('save')} СОХРАНЕНО</div>
         <div class="joystick" id="joystick"><div class="stick" id="stick"></div></div>
-        <button class="soyka-button" id="soykaButton"><span class="soyka-dot"></span><b>СОЙКА</b></button>
-        <button class="jump-button" id="jumpButton" aria-label="Прыгнуть (пробел)"><span aria-hidden="true">↥</span><small>ПРЫЖОК</small></button>
+        <button class="soyka-button" id="soykaButton"><span class="soyka-dot">${icon('signal')}</span><span><b>СОЙКА</b><small>ПОДАТЬ СИГНАЛ</small></span></button>
+        <button class="jump-button" id="jumpButton" aria-label="Прыгнуть (пробел)">${icon('jump')}<small>ПРЫЖОК</small></button>
         <div class="world-notice hidden" id="worldNotice" role="status" aria-live="polite"></div>
-        <div class="control-hint" id="controlHint"><span class="desktop-hint">WASD — идти · Мышь с зажатой кнопкой — осмотр · Пробел — прыжок · E — действие</span><span class="touch-hint">Слева — движение · Проведи по экрану — осмотр · ↥ — прыжок</span></div>
-        <button class="interact hidden" id="interactButton">⚡ ВЗАИМОДЕЙСТВОВАТЬ</button>
+        <div class="control-hint" id="controlHint"><span class="desktop-hint"><kbd>WASD</kbd> ДВИЖЕНИЕ <kbd>МЫШЬ</kbd> ОСМОТР <kbd>ПРОБЕЛ</kbd> ПРЫЖОК <kbd>V</kbd> ВИД</span><span class="touch-hint">Джойстик — движение · Проведи по экрану — осмотр · Камера — сменить вид</span></div>
+        <button class="interact hidden" id="interactButton">ВЗАИМОДЕЙСТВОВАТЬ</button>
         <div class="dialogue-shell" id="dialogueShell">
           <div class="dialogue-choices hidden" id="dialogueChoices"></div>
           <div class="choice-timer hidden" id="choiceTimer"><span id="choiceTimerFill"></span></div>
           <div class="dialogue" id="dialogue">
+            <span class="voice-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
             <b class="dialogue-speaker" id="dialogueSpeaker">МАРА</b>
             <span class="dialogue-text" id="dialogueText">Лев? Если слышишь меня — найди аварийный щит.</span>
           </div>
@@ -64,6 +72,7 @@ export class Hud {
     this.interactButton = this.require<HTMLButtonElement>('#interactButton');
     this.soykaButton = this.require<HTMLButtonElement>('#soykaButton');
     this.jumpButton = this.require<HTMLButtonElement>('#jumpButton');
+    this.cameraButton = this.require<HTMLButtonElement>('#cameraButton');
     this.energyPanel = this.require('#energyPanel');
     this.dialogue = this.require('#dialogue');
     this.dialogueShell = this.require('#dialogueShell');
@@ -101,6 +110,7 @@ export class Hud {
   }
 
   setPaused(paused: boolean) {
+    this.root.classList.toggle('is-paused', paused);
     this.require<HTMLElement>('.hud').inert = paused;
     this.energyPanel.inert = paused;
   }
@@ -151,6 +161,20 @@ export class Hud {
 
   setObjective(text: string) {
     this.objective.textContent = text;
+  }
+
+  setCameraMode(mode: CameraMode): void {
+    this.root.dataset.camera = mode;
+    this.cameraButton.setAttribute('aria-pressed', String(mode === 'first'));
+    this.require('#cameraModeLabel').textContent = mode === 'first' ? 'I' : 'III';
+    this.require('#aimReticle').classList.toggle('hidden', mode !== 'first');
+  }
+
+  setHeading(yaw: number): void {
+    const heading = (Math.round(-yaw * 180 / Math.PI) % 360 + 360) % 360;
+    if (heading === this.heading) return;
+    this.heading = heading;
+    this.require('#headingValue').textContent = `${String(heading).padStart(3, '0')}°`;
   }
 
   notify(text: string, duration = 5000) {
