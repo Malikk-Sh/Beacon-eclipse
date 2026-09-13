@@ -12,6 +12,7 @@ platforms:
   - browserName: chrome
     osVersion: '13'
     deviceName: Google Pixel 7
+    deviceOrientation: landscape
   - browserName: safari
     osVersion: '17'
     deviceName: iPhone 15 Pro Max
