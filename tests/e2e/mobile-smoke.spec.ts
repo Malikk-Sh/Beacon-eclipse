@@ -119,6 +119,20 @@ test('mobile WebGL smoke journey', async ({ page }) => {
     if (!browserStackRun) await page.screenshot({ path: test.info().outputPath('lighthouse.png'), scale: 'css' });
   });
 
+  if (consoleErrors.length > 0) {
+    console.log(`[mobile-e2e] browser console errors: ${JSON.stringify(consoleErrors)}`);
+  }
+  expect(pageErrors).toEqual([]);
+});
+
+// Keep persistence independent of the visual boot capture. On software WebGL,
+// two production boots plus screenshots exhausted one shared test budget.
+test('mobile settings survive a production reload', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.goto('/?perf=1', { waitUntil: 'domcontentloaded' });
+  await waitForGame(page);
+
   await timedStep('pause settings persist graphics quality', async () => {
     const pauseButton = page.getByRole('button', { name: 'Пауза' });
     const continueButton = page.getByRole('button', { name: 'ПРОДОЛЖИТЬ' });
@@ -158,13 +172,8 @@ test('mobile WebGL smoke journey', async ({ page }) => {
     expect(text).toMatch(/canvas CSS \d+x\d+\s+\|\s+buffer \d+x\d+/);
   });
 
-
-  if (consoleErrors.length > 0) {
-    console.log(`[mobile-e2e] browser console errors: ${JSON.stringify(consoleErrors)}`);
-  }
   expect(pageErrors).toEqual([]);
 });
-
 
 // Orientation and trusted touch have their own browser context and time budget.
 // Keep the production reload/settings journey independent: software WebGL on CI
