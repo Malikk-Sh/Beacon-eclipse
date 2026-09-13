@@ -39,6 +39,8 @@ export class ThirdPersonCamera {
     private readonly overheadObstacles: readonly CameraObstacle[] = [],
   ) {}
 
+  reset(): void { this.initialized = false; }
+
   update(playerPosition: THREE.Vector3, yaw: number, pitch: number, dt: number): void {
     this.target.copy(playerPosition);
     this.target.y += 1.45;

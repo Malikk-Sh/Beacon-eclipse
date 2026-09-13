@@ -24,6 +24,15 @@ type JoystickProbe = {
   transformOnUp: string;
 };
 
+async function timedStep(name: string, run: () => Promise<void>): Promise<void> {
+  const started = Date.now();
+  try {
+    await test.step(name, run);
+  } finally {
+    console.log(`[mobile-e2e] ${test.info().project.name}: ${name}: ${Date.now() - started} ms`);
+  }
+}
+
 async function readCanvasDiagnostics(canvas: Locator): Promise<CanvasDiagnostics> {
   return canvas.evaluate((element) => {
     const canvasElement = element as HTMLCanvasElement;
@@ -54,7 +63,7 @@ async function expectSelectValue(locator: Locator, expected: string): Promise<vo
   }).toBe(expected);
 }
 
-async function waitForGame(page: Page) {
+async function waitForGame(page: Page, captureOpening = false) {
   const canvas = page.locator('#game canvas');
   await expect(canvas).toBeVisible();
 
@@ -72,6 +81,14 @@ async function waitForGame(page: Page) {
     throw error;
   }
 
+  // The scene boots behind the title screen; story timers and controls start only on entry.
+  await expect(page.locator('.opening-screen')).toBeVisible();
+  await expect(page.locator('#joystick')).toBeHidden();
+  if (captureOpening && !browserStackRun) {
+    await page.screenshot({ path: test.info().outputPath('opening.png'), scale: 'css' });
+  }
+  await activateButton(page.locator('.opening-start'));
+  await expect(page.locator('.opening-screen')).toBeHidden();
   return canvas;
 }
 
@@ -84,11 +101,12 @@ test('mobile WebGL smoke journey', async ({ page }) => {
   });
 
   await page.goto('/?perf=1', { waitUntil: 'domcontentloaded' });
-  let canvas = await waitForGame(page);
+  const canvas = await waitForGame(page, true);
 
-  await test.step('boot WebGL scene and mobile HUD', async () => {
+  await timedStep('boot WebGL scene and mobile HUD', async () => {
     await expect(page.locator('#joystick')).toBeVisible();
     await expect(page.locator('#soykaButton')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Прыгнуть (пробел)' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Пауза' })).toBeVisible();
     await expect(page.locator('#objective')).toContainText('НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ');
 
@@ -98,9 +116,24 @@ test('mobile WebGL smoke journey', async ({ page }) => {
     expect(dimensions.bufferWidth).toBeGreaterThan(0);
     expect(dimensions.bufferHeight).toBeGreaterThan(0);
     expect(dimensions.hasWebGL2).toBe(true);
+    if (!browserStackRun) await page.screenshot({ path: test.info().outputPath('lighthouse.png'), scale: 'css' });
   });
 
-  await test.step('pause settings persist graphics quality', async () => {
+  if (consoleErrors.length > 0) {
+    console.log(`[mobile-e2e] browser console errors: ${JSON.stringify(consoleErrors)}`);
+  }
+  expect(pageErrors).toEqual([]);
+});
+
+// Keep persistence independent of the visual boot capture. On software WebGL,
+// two production boots plus screenshots exhausted one shared test budget.
+test('mobile settings survive a production reload', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.goto('/?perf=1', { waitUntil: 'domcontentloaded' });
+  await waitForGame(page);
+
+  await timedStep('pause settings persist graphics quality', async () => {
     const pauseButton = page.getByRole('button', { name: 'Пауза' });
     const continueButton = page.getByRole('button', { name: 'ПРОДОЛЖИТЬ' });
 
@@ -117,13 +150,13 @@ test('mobile WebGL smoke journey', async ({ page }) => {
     await activateButton(continueButton);
 
     await page.reload({ waitUntil: 'domcontentloaded' });
-    canvas = await waitForGame(page);
+    await waitForGame(page);
     await activateButton(pauseButton);
     await expectSelectValue(page.locator('#qualitySelect'), 'low');
     await activateButton(continueButton);
   });
 
-  await test.step('runtime audit exposes viewport and canvas metrics', async () => {
+  await timedStep('runtime audit exposes viewport and canvas metrics', async () => {
     const audit = page.locator('[data-runtime-performance="true"]');
     await expect(audit).toBeVisible();
 
@@ -139,8 +172,22 @@ test('mobile WebGL smoke journey', async ({ page }) => {
     expect(text).toMatch(/canvas CSS \d+x\d+\s+\|\s+buffer \d+x\d+/);
   });
 
-  if (!browserStackRun) {
-    await test.step('portrait viewport stays inside the page', async () => {
+  expect(pageErrors).toEqual([]);
+});
+
+// Orientation and trusted touch have their own browser context and time budget.
+// Keep the production reload/settings journey independent: software WebGL on CI
+// must not consume the orientation test's budget before it starts.
+if (!browserStackRun) {
+  test('mobile orientation and trusted joystick input', async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    await page.addInitScript(() => {
+      localStorage.setItem('beacon-eclipse.settings.v1', JSON.stringify({ quality: 'low', sfxVolume: 0 }));
+    });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    const canvas = await waitForGame(page);
+    await timedStep('portrait viewport stays inside the page', async () => {
       await page.setViewportSize({ width: 390, height: 844 });
       await expect.poll(async () => canvas.evaluate((element) => ({
         width: (element as HTMLCanvasElement).clientWidth,
@@ -155,10 +202,8 @@ test('mobile WebGL smoke journey', async ({ page }) => {
       await expect(page.getByRole('button', { name: 'Пауза' })).toBeVisible();
     });
 
-    // Keep trusted touch input last. On GitHub's software-WebGL Chromium runner the
-    // mobile touchscreen path is significantly slower than normal DOM operations;
-    // isolating it at the end prevents that cost from obscuring settings/layout failures.
-    await test.step('joystick receives trusted touch pointer input', async () => {
+    // Trusted touch follows the orientation change, exercising the resized HUD.
+    await timedStep('joystick receives trusted touch pointer input', async () => {
       const joystick = page.locator('#joystick');
       const box = await joystick.boundingBox();
       expect(box).not.toBeNull();
@@ -213,10 +258,39 @@ test('mobile WebGL smoke journey', async ({ page }) => {
       expect(probe.transformOnDown).not.toBe('translate(0px, 0px)');
       expect(probe.transformOnUp).toBe('translate(0px, 0px)');
     });
-  }
+    expect(pageErrors).toEqual([]);
+  });
+}
 
-  if (consoleErrors.length > 0) {
-    console.log(`[mobile-e2e] browser console errors: ${JSON.stringify(consoleErrors)}`);
-  }
+test('legacy void save resumes safely without losing story choices', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.addInitScript(() => {
+    localStorage.setItem('beacon-eclipse.settings.v1', JSON.stringify({ quality: 'low', sfxVolume: 0 }));
+    localStorage.setItem('beacon-eclipse.save.v1', JSON.stringify({
+      version: 1, savedAt: 1,
+      player: { position: { x: 0, y: -5000, z: -62 }, yaw: 0 },
+      progress: { lighthousePowered: true, warehouseContacted: true, warehouseFarewellPlayed: true,
+        bridgeStarted: true, schoolEntered: true },
+      energy: ['bridge', 'lights'], choices: { introMemory: 'mara' },
+      responseProfile: { direct: 1, vulnerable: 2, silent: 0 }, schoolEchoesHeard: [],
+    }));
+  });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await waitForGame(page);
+  await expect(page.locator('#objective')).toContainText('ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('beacon-eclipse.save.v1') ?? '{}'));
+  expect(saved.player.position.y).toBeGreaterThan(0.25);
+  expect(saved.player.position.y).toBeLessThan(0.8);
+  expect(saved.player.position.z).toBeCloseTo(-59, 0);
+  expect(saved.choices.introMemory).toBe('mara');
+  expect(saved.responseProfile.vulnerable).toBe(2);
+  expect(saved.energy).toEqual(['bridge', 'lights']);
+  if (!browserStackRun) await page.screenshot({ path: test.info().outputPath('recovered-school.png'), scale: 'css' });
+
+  await activateButton(page.getByRole('button', { name: 'Пауза' }));
+  await activateButton(page.getByRole('button', { name: 'ВЕРНУТЬСЯ НА БЕЗОПАСНОЕ МЕСТО' }));
+  await expect(page.getByRole('dialog', { name: 'Пауза и настройки' })).toBeHidden();
+  await expect(page.locator('#jumpButton')).toBeEnabled();
   expect(pageErrors).toEqual([]);
 });

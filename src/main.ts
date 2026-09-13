@@ -4,6 +4,9 @@ import './style.css';
 import './dialogue.css';
 import './ending.css';
 import './warehouse-cutoff.css';
+import './opening.css';
+import { OpeningScreen } from './ui/OpeningScreen';
+import { HarborDistrict, HARBOR_DISCOVERIES } from './world/HarborDistrict';
 import { BridgeArchiveTerminal } from './game/BridgeArchiveTerminal';
 import { DialogueSystem } from './game/DialogueSystem';
 import { EnergySystem } from './game/EnergySystem';
@@ -13,6 +16,8 @@ import { InteractionSystem } from './game/InteractionSystem';
 import { MemoryReconstructionSystem } from './game/MemoryReconstructionSystem';
 import { PlayerController } from './game/PlayerController';
 import { SaveSystem } from './game/SaveSystem';
+import { TraversalSafety, canEnterSchool } from './game/TraversalSafety';
+import { audioSystem } from './game/AudioSystem';
 import { SchoolReconstruction } from './game/SchoolReconstruction';
 import { GraphicsQuality, SettingsStore } from './game/SettingsStore';
 import { SoykaController } from './game/SoykaController';
@@ -45,6 +50,7 @@ const pauseMenu = new PauseMenu(app);
 const sliceEnding = new VerticalSliceEnding(app);
 const dialogue = new DialogueSystem(hud);
 const world = new GameWorld(physics);
+const harbor = new HarborDistrict(world.scene, physics);
 const visualFoundation = new VisualFoundation(world.scene);
 const archiveTerminal = new BridgeArchiveTerminal(world.scene);
 const memory = new MemoryReconstructionSystem(world.scene, new THREE.Vector3(-3, 0, -10.8));
@@ -80,6 +86,9 @@ school.restore(
 archiveTerminal.setAvailable(storyState.progress.schoolReconstructionCompleted);
 if (storyState.progress.bridgeArchiveTerminalSeen) archiveTerminal.showIdentityMatch();
 hud.refreshEnergy();
+physics.step();
+const traversal = new TraversalSafety(physics, player, storyState.progress, () => world.isBridgeReady);
+const recoveredOnLoad = traversal.restore(storyState.player.position) || saves.repairedPosition;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setSize(innerWidth, innerHeight);
@@ -109,7 +118,7 @@ applyGraphicsQuality(settings.quality);
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
 const cameraController = new ThirdPersonCamera(camera, physics, player.collider, world.cameraObstacles);
-const input = new InputController(hud.joystick, hud.stick, renderer.domElement);
+const input = new InputController(hud.joystick, hud.stick, renderer.domElement, hud.jumpButton);
 const interactions = new InteractionSystem(hud.interactButton);
 const pauseButtonCandidate = app.querySelector<HTMLButtonElement>('.pause');
 if (!pauseButtonCandidate) throw new Error('Missing pause button');
@@ -117,6 +126,7 @@ const pauseButton: HTMLButtonElement = pauseButtonCandidate;
 
 let warehouseConversationActive = false;
 let paused = false;
+let journeyStarted = false;
 let sliceEnded = false;
 let yaw = storyState.player.yaw;
 let pitch = -0.12;
@@ -161,9 +171,9 @@ function rememberChoice(key: string, choice: string) {
 
 function captureStoryState() {
   storyState.player.position = {
-    x: player.position.x,
-    y: player.position.y,
-    z: player.position.z,
+    x: traversal.checkpoint.x,
+    y: traversal.checkpoint.y,
+    z: traversal.checkpoint.z,
   };
   storyState.player.yaw = yaw;
   storyState.energy = energy.activeSystems;
@@ -171,12 +181,13 @@ function captureStoryState() {
 }
 
 function persist(showIndicator = false) {
+  if (!journeyStarted) return;
   const saved = saves.save(captureStoryState());
   if (saved && showIndicator) hud.flashAutosave();
 }
 
 function setPaused(next: boolean) {
-  if (sliceEnded || paused === next) return;
+  if (!journeyStarted || sliceEnded || paused === next) return;
   paused = next;
   input.setEnabled(!paused && !hud.isEnergyOpen && !cutoff.isOpen);
   hud.setPaused(paused);
@@ -198,6 +209,15 @@ function syncFullscreenState() {
 pauseButton.addEventListener('click', () => setPaused(true));
 pauseMenu.continueButton.addEventListener('click', () => setPaused(false));
 pauseMenu.backButton.addEventListener('click', () => setPaused(false));
+pauseMenu.recoverButton.addEventListener('click', () => {
+  farewell.cancel();
+  hud.closeEnergy();
+  traversal.recover();
+  cameraController.reset();
+  setPaused(false);
+  hud.notify('Лев вернулся на устойчивую поверхность. Сюжетный прогресс сохранён.');
+  persist(true);
+});
 pauseMenu.fullscreenButton.addEventListener('click', async () => {
   try {
     await fullscreen.toggle();
@@ -256,6 +276,25 @@ function syncObjective() {
 syncObjective();
 if (loadedState) hud.hideDialogue();
 
+function syncJournal() {
+  pauseMenu.setJournal(HARBOR_DISCOVERIES.filter((item) => storyState.choices[`harbor:${item.id}`] === 'read')
+    .map((item) => ({ title: item.title, text: item.text })));
+}
+syncJournal();
+for (const item of HARBOR_DISCOVERIES) {
+  interactions.add({
+    id: item.id, label: `◎ ${item.title}`, position: new THREE.Vector3(item.x, 0, item.z), radius: 2.1,
+    enabled: () => !dialogue.isBusy && !farewell.active && !storyState.choices[`harbor:${item.id}`],
+    action: () => {
+      rememberChoice(`harbor:${item.id}`, 'read');
+      dialogue.say(item.speaker, item.text, 9);
+      hud.notify('Найдена запись. Её можно перечитать в меню паузы.', 4500);
+      syncJournal();
+      persist(true);
+    },
+  });
+}
+
 interactions.add({
   id: 'lighthouse-panel',
   label: '⚡ АВАРИЙНЫЙ ЩИТ — ЗАПУСТИТЬ',
@@ -265,6 +304,7 @@ interactions.add({
   action: () => {
     storyState.progress.lighthousePowered = true;
     world.unlockLighthouseDoor();
+    audioSystem.playMovementCue('relay');
     hud.setObjective('ДОБРАТЬСЯ ДО ЭНЕРГОСТАНЦИИ');
     persist(true);
     dialogue.play([
@@ -494,8 +534,26 @@ energy.onChange = (system, enabled) => {
 
 hud.soykaButton.addEventListener('click', () => {
   if (paused || sliceEnded || farewell.active) return;
-  soyka.signal();
-  dialogue.say('СОЙКА', 'Работаем.', 1.8);
+  const progress = storyState.progress;
+  if (progress.schoolReconstructionStarted && !progress.schoolReconstructionCompleted) {
+    soyka.signal();
+    dialogue.say('СОЙКА', 'Голоса в коридоре. Подойди ближе к вещам — я удержу фрагменты.', 4.5);
+    return;
+  }
+  const [label, target] = !progress.lighthousePowered ? ['Аварийный щит', world.landmarks.lighthousePanel] as const
+    : progress.schoolReconstructionCompleted ? ['Архивный терминал', archiveTerminal.interactionPosition] as const
+      : progress.schoolEntered ? ['Архивный узел', school.reconstructionNode] as const
+        : progress.bridgeStarted ? ['Школа', school.entrance] as const
+          : progress.warehouseContacted && energy.isActive('bridge') ? ['Привод моста', world.landmarks.bridgeStart] as const
+            : energy.isActive('warehouse') && !progress.warehouseContacted ? ['Склад 04', world.landmarks.warehouse04] as const
+              : ['Распределитель', world.landmarks.energyStation] as const;
+  const dx = target.x - player.position.x, dz = target.z - player.position.z;
+  const bearing = Math.atan2(dx, -dz) + yaw;
+  const relative = Math.atan2(Math.sin(bearing), Math.cos(bearing));
+  const direction = Math.abs(relative) > 2.3 ? 'позади' : Math.abs(relative) < 0.6 ? 'впереди' : relative > 0 ? 'справа' : 'слева';
+  soyka.signal(target);
+  hud.notify(`${label} · ${Math.round(Math.hypot(dx, dz))} м · ${direction}`, 6000);
+  dialogue.say('СОЙКА', 'Держу сигнал. Ориентир отмечен.', 2.5);
 });
 
 if (!loadedState) {
@@ -569,18 +627,37 @@ if (!loadedState) {
   ]);
 }
 
+input.setEnabled(false);
+hud.setPaused(true);
+new OpeningScreen(app, Boolean(loadedState), () => {
+  journeyStarted = true;
+  hud.setPaused(false);
+  input.setEnabled(true);
+  void audioSystem.unlock().catch((error) => console.warn('Audio unavailable', error));
+  if (recoveredOnLoad && loadedState) {
+    hud.notify('Сохранение восстановлено: Лев снова на безопасном месте. Сюжетные выборы сохранены.', 7500);
+  } else if (!loadedState) {
+    hud.notify('СЕВЕРНЫЙ МАЯК · Служебная комната', 5000);
+  }
+  persist(false);
+}, () => {
+  saves.clear();
+  location.reload();
+});
+cameraController.update(player.position, yaw, pitch, 1 / 60);
 const clock = new THREE.Clock();
 
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.033);
 
-  if (!paused && !sliceEnded) {
+  if (journeyStarted && !paused && !sliceEnded) {
     gameElapsed += dt;
     const controlsBlocked = hud.isEnergyOpen || cutoff.isOpen;
     input.setEnabled(!controlsBlocked);
     hud.interactButton.disabled = controlsBlocked || farewell.active;
     hud.soykaButton.disabled = controlsBlocked || farewell.active;
+    hud.jumpButton.disabled = controlsBlocked || farewell.active;
     input.update();
     const look = input.consumeLookDelta();
     yaw -= look.x * 0.004;
@@ -590,11 +667,27 @@ function animate() {
     physics.timestep = dt;
     physics.step();
     player.syncVisual();
+    if (traversal.update(dt)) {
+      input.setEnabled(false);
+      farewell.cancel();
+      cameraController.reset();
+      audioSystem.playMovementCue('water');
+      hud.notify('Сильное течение. Лев выбрался на последнее безопасное место.');
+      persist(true);
+    }
+    if (gameElapsed > 40) hud.hideControlHint();
+    if (storyState.progress.lighthousePowered && player.grounded && player.position.z < 6
+      && player.position.z > -3 && !storyState.choices.harborArrival && !dialogue.isBusy) {
+      rememberChoice('harborArrival', 'seen');
+      hud.notify('СЕВЕРНЫЙ ПОРТ · Приливная набережная', 6000);
+      dialogue.say('МАРА', 'Распределитель впереди. Можно осмотреть причалы — только держись подальше от течения.', 6);
+      persist(false);
+    }
 
     if (
       storyState.progress.bridgeStarted
       && !storyState.progress.schoolEntered
-      && player.position.distanceTo(school.entrance) < 4.8
+      && canEnterSchool(player.position, player.grounded, world.isBridgeReady)
     ) {
       storyState.progress.schoolEntered = true;
       hud.setObjective('ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ');
@@ -613,12 +706,14 @@ function animate() {
     }
     dialogue.update(dt);
     cutoff.update(dt);
-    interactions.update(player.position);
+    interactions.update(player.position, player.grounded && !controlsBlocked && !farewell.active);
+    if (input.consumeInteract()) interactions.trigger();
     soyka.update(player.position, gameElapsed, dt);
     memory.update(dt);
     school.update(dt, player);
     world.update(dt);
-    visualFoundation.update(dt);
+    visualFoundation.update(dt, player.position);
+    harbor.update(dt);
 
     autosaveElapsed += dt;
     if (autosaveElapsed >= 5) {
@@ -629,6 +724,10 @@ function animate() {
     cameraController.update(player.position, yaw, pitch, dt);
   }
 
+  if (!journeyStarted) {
+    visualFoundation.update(dt, player.position);
+    harbor.update(dt);
+  }
   renderer.render(world.scene, camera);
 }
 

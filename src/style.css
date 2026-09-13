@@ -101,3 +101,15 @@ button { font: inherit; color: inherit; }
   .soyka-dot { width: 38px; height: 38px; }
   .interact { right: max(145px, calc(env(safe-area-inset-right) + 125px)); bottom: 48px; font-size: 14px; padding: 10px 12px; }
 }
+
+.jump-button { pointer-events: auto; position: absolute; right: max(54px, env(safe-area-inset-right)); bottom: 176px; width: 78px; height: 64px; display: grid; place-content: center; gap: 2px; border: 1px solid #aec6d14d; border-radius: 16px; background: #09151dc9; backdrop-filter: blur(8px); }
+.jump-button span { font-size: 27px; line-height: 1; }
+.jump-button small { font-size: 9px; letter-spacing: .1em; }
+.jump-button:active { background: #344854; }
+.jump-button:disabled { opacity: .4; }
+.world-notice { position: absolute; top: 21%; left: 50%; transform: translateX(-50%); width: min(560px, 70vw); text-align: center; background: #09151dea; border: 1px solid #b4ccd135; padding: 14px 22px; border-radius: 5px; color: #d8e4df; font-size: 14px; line-height: 1.5; }
+.control-hint { position: absolute; left: 50%; top: 83px; transform: translateX(-50%); width: min(620px, 62vw); text-align: center; color: #c2ced0; font-size: 11px; line-height: 1.6; text-shadow: 0 1px 4px #000; }
+.touch-hint { display: none; }
+.settings-help { font-size: 12px; color: #9daeb6; line-height: 1.7; }
+@media (pointer: coarse) { .desktop-hint { display: none; } .touch-hint { display: inline; } }
+@media (max-width: 760px), (max-height: 500px) { .jump-button { right: 34px; bottom: 138px; width: 68px; height: 56px; } .control-hint { top: 66px; font-size: 10px; } .world-notice { top: 23%; font-size: 12px; padding: 10px 14px; } }

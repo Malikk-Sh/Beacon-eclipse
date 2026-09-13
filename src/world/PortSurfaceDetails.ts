@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { MaterialLibrary } from './MaterialLibrary';
+import { CONTAINERS, PUMP_X } from './HarborLayout';
 
 type Part = { position: THREE.Vector3; scale: THREE.Vector3; rotation: THREE.Quaternion };
 
@@ -90,9 +91,7 @@ export class PortSurfaceDetails {
   }
 
   private containers(m: MaterialLibrary): void {
-    const specs = [[-9, -7, 5, 2.6, 12], ...Array.from({ length: 7 }, (_, i) => [
-      -11 + i % 3 * 4, 4 + Math.floor(i / 3) * 5, 3.4, 2.4, 4.2,
-    ])];
+    const specs = CONTAINERS;
     for (const [x, z, sx, sy, sz] of specs) {
       const count = Math.ceil(sz / 0.28);
       for (const side of [-1, 1]) {
@@ -124,9 +123,9 @@ export class PortSurfaceDetails {
       for (const z of [-6.8, -3.25]) this.part(m.oldSteel, x, 1.55, z, 0.09, 2.8, 0.095);
     }
     // Pump room access covers and louvers break up the large eight-metre wall.
-    this.part(m.concrete, -3, 0.15, -14, 8.08, 0.3, 4.1);
-    this.part(m.oldSteel, -3, 3.25, -14, 8.1, 0.13, 4.1);
-    for (const x of [-6, -3.8, -1.6, 0.6]) {
+    this.part(m.concrete, PUMP_X, 0.15, -14, 8.08, 0.3, 4.1);
+    this.part(m.oldSteel, PUMP_X, 3.25, -14, 8.1, 0.13, 4.1);
+    for (const x of [PUMP_X - 3, PUMP_X - 0.8, PUMP_X + 1.4, PUMP_X + 3.6]) {
       this.part(m.darkSteel, x, 1.75, -11.96, 1.65, 2.55, 0.035);
       for (const y of [0.58, 2.92]) this.part(m.oldSteel, x, y, -11.91, 1.64, 0.075, 0.07);
       for (let row = 0; row < 8; row++) this.part(m.paintedMetal, x, 0.9 + row * 0.12, -11.89, 1.4, 0.05, 0.075);
@@ -135,8 +134,8 @@ export class PortSurfaceDetails {
 
   private quay(m: MaterialLibrary): void {
     for (const side of [-1, 1]) {
-      this.part(m.wetConcrete, side * 35, -0.25, -2, 0.4, 0.7, 100);
-      for (let i = 0; i < 25; i++) {
+      this.part(m.wetConcrete, side * 35, -0.25, 15.25, 0.4, 0.7, 65.5);
+      for (let i = 0; i < 16; i++) {
         this.part(m.concrete, side * 34.86, 0.04, 46 - i * 4, 0.55, 0.08, 3.92);
         this.part(m.rust, side * 35.2, -0.2, 46 - i * 4, 0.09, 0.48, 0.32);
       }

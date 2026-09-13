@@ -206,3 +206,5 @@ button.settings-row:focus-visible,
     margin-top: 10px;
   }
 }
+
+.settings-card { max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain; }

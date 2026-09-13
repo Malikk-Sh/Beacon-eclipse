@@ -4,6 +4,7 @@ import { MaterialLibrary } from '../world/MaterialLibrary';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { EnergySystemName } from './EnergySystem';
 import { cameraBox, type CameraObstacle } from './ThirdPersonCamera';
+import { CONTAINERS, HARBOR_FLOORS, PUMP_X } from '../world/HarborLayout';
 
 export interface WorldLandmarks {
   lighthousePanel: THREE.Vector3;
@@ -22,7 +23,7 @@ export class GameWorld {
     lighthouseExit: new THREE.Vector3(0, 0, 16.8),
     energyStation: new THREE.Vector3(2, 0, -1.7),
     warehouse04: new THREE.Vector3(8, 0, -7.25),
-    bridgeStart: new THREE.Vector3(0, 0, -18),
+    bridgeStart: new THREE.Vector3(-1.55, 0, -15.1),
   };
 
   private readonly lighthouseDoor: THREE.Mesh;
@@ -62,15 +63,16 @@ export class GameWorld {
     lighthouseEmergencyLight.position.set(-2.8, 3.2, 24);
     this.scene.add(lighthouseEmergencyLight);
 
-    const floor = new THREE.Mesh(
-      new THREE.PlaneGeometry(70, 100),
-      this.materials.wetGround,
-    );
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.z = -2;
-    floor.receiveShadow = true;
-    this.scene.add(floor);
-    this.physics.createCollider(RAPIER.ColliderDesc.cuboid(35, 0.1, 50).setTranslation(0, -0.1, -2));
+    // The quay ends at the water. Every extension has a matching visible deck and collider.
+    for (const floor of HARBOR_FLOORS) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(floor.width, 0.8, floor.depth), this.materials.wetGround);
+      mesh.name = floor.name;
+      mesh.position.set(floor.x, -0.4, floor.z);
+      mesh.receiveShadow = true;
+      this.scene.add(mesh);
+      this.physics.createCollider(RAPIER.ColliderDesc.cuboid(floor.width / 2, 0.4, floor.depth / 2)
+        .setTranslation(floor.x, -0.4, floor.z));
+    }
 
     // Lighthouse technical room.
     this.addBox(-4.1, 25.7, 0.35, 4.2, 16.4, 0x20272c);
@@ -113,16 +115,17 @@ export class GameWorld {
     beacon.position.set(0, 14.2, 28.5);
     this.scene.add(beacon);
 
-    // Structural shells retain the original collision dimensions and story landmarks.
-    this.addBox(-9, -7, 5, 2.6, 12, 0x24313a);
-    this.addBox(-3, -14, 8, 3.2, 4, 0x2b3438);
+    // Keep a broad central approach between the pump room and warehouse.
+    this.addBox(PUMP_X, -14, 8, 3.2, 4, 0x2b3438);
     this.addBox(8, -13, 13, 5.5, 9, 0x627277).name = 'warehouse-shell';
     // The pitched roof is visual only, but still occludes the camera.
     this.cameraObstacles.push(cameraBox(new THREE.Vector3(8, 6.15, -13), 13.85, 1.4, 9.9));
     this.addBox(2, -5, 5, 3, 4, 0x647a7d).name = 'energy-shell';
-    for (let i = 0; i < 7; i++) {
-      this.addBox(-11 + (i % 3) * 4, 4 + Math.floor(i / 3) * 5, 3.4, 2.4, 4.2, 0x27343d);
-    }
+    for (const [x, z, sx, sy, sz] of CONTAINERS) this.addBox(x, z, sx, sy, sz, 0x27343d);
+    this.addBridgeRamp();
+    // A physical drive housing sits beside, rather than in, the ramp.
+    this.addBox(-2.75, -16.72, 1.72, 1.25, 1.18, 0x354249);
+
 
     // Drawbridge. It starts raised; a physical gate blocks the approach until deployment finishes.
     this.bridgePivot.name = 'bridge-visual-root';
@@ -150,12 +153,12 @@ export class GameWorld {
 
     this.warehouseLight.position.set(8, 3.2, -8.3);
     this.portPowerLight.position.set(-2, 4.5, -4);
-    this.pumpLight.position.set(-3, 2.7, -12.2);
+    this.pumpLight.position.set(PUMP_X, 2.7, -12.2);
     this.scene.add(this.warehouseLight, this.portPowerLight, this.pumpLight);
 
     this.warehouseIndicator = this.addIndicator(8, 2.7, -8.42, 0xffad55);
     this.portIndicator = this.addIndicator(2, 2.35, -2.92, 0xffb85e);
-    this.pumpIndicator = this.addIndicator(-3, 2.1, -11.92, 0x68caff);
+    this.pumpIndicator = this.addIndicator(PUMP_X, 2.1, -11.92, 0x68caff);
     for (const side of [-2.85, 2.85]) {
       for (let z = -20; z >= -42; z -= 5.5) {
         this.bridgeIndicators.push(this.addIndicator(side, 1.4, z, 0xff4438));
@@ -171,6 +174,8 @@ export class GameWorld {
     }
     if (immediate) this.lighthouseDoor.position.y = 5.2;
   }
+
+  get isBridgeReady(): boolean { return this.bridgeReady; }
 
   startBridge(immediate = false) {
     if (this.bridgeReady) return;
@@ -227,7 +232,32 @@ export class GameWorld {
     if (!this.bridgeDeckCollider) {
       const body = this.physics.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, 0.325, -31.5));
       this.bridgeDeckCollider = this.physics.createCollider(RAPIER.ColliderDesc.cuboid(3.5, 0.225, 14), body);
+      for (const x of [-3.18, 3.18]) {
+        this.physics.createCollider(RAPIER.ColliderDesc.cuboid(0.07, 0.57, 13.8)
+          .setTranslation(x, 1.11, -31.5));
+      }
     }
+  }
+
+  private addBridgeRamp(): void {
+    // 0 -> 0.55 m over 3 m, with the high edge overlapping the deployed deck.
+    const vertices = new Float32Array([
+      -1.6, -0.05, -14.7, 1.4, -0.05, -14.7, -1.6, -0.05, -17.7, 1.4, -0.05, -17.7,
+      -1.6, 0.02, -14.7, 1.4, 0.02, -14.7, -1.6, 0.55, -17.7, 1.4, 0.55, -17.7,
+    ]);
+    const indices = [4, 5, 6, 5, 7, 6, 0, 2, 1, 1, 2, 3, 0, 4, 2, 4, 6, 2,
+      1, 3, 5, 5, 3, 7, 2, 6, 3, 3, 6, 7, 0, 1, 4, 1, 5, 4];
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    const ramp = new THREE.Mesh(geometry, this.materials.wetConcrete);
+    ramp.name = 'bridge-approach-ramp';
+    ramp.castShadow = ramp.receiveShadow = true;
+    this.scene.add(ramp);
+    const collider = RAPIER.ColliderDesc.convexHull(vertices);
+    if (!collider) throw new Error('Invalid bridge ramp');
+    this.physics.createCollider(collider);
   }
 
   private addIndicator(x: number, y: number, z: number, onColor: number) {

@@ -49,9 +49,9 @@ export class VisualFoundation {
     this.weather.setQuality(quality);
   }
 
-  update(dt: number): void {
+  update(dt: number, playerPosition?: THREE.Vector3): void {
     this.dressing.update(dt);
-    this.weather.update(dt);
+    this.weather.update(dt, playerPosition);
     audioSystem.update(dt);
   }
 

@@ -60,9 +60,9 @@ export class LevVisual {
     });
   }
 
-  update(dt: number, moving: boolean): void {
+  update(dt: number, moving: boolean, grounded = true, verticalSpeed = 0, landing = 0): void {
     this.elapsed += dt;
-    const target = moving ? 1 : 0;
+    const target = moving && grounded ? 1 : 0;
     this.motionBlend = THREE.MathUtils.lerp(this.motionBlend, target, 1 - Math.exp(-dt * 8));
     this.gait += dt * THREE.MathUtils.lerp(2.4, 8.2, this.motionBlend);
 
@@ -93,6 +93,18 @@ export class LevVisual {
     this.torsoRoot.position.y = breath * 0.008 * idleWeight;
     this.torsoRoot.scale.set(1, 1 + breath * 0.004 * idleWeight, 1);
     this.root.position.y = verticalStep;
+    if (!grounded) {
+      const lift = THREE.MathUtils.clamp(verticalSpeed / 7.2, -1, 1);
+      this.leftArm.rotation.x = -0.45;
+      this.rightArm.rotation.x = -0.35;
+      this.leftArm.rotation.z = -0.22;
+      this.rightArm.rotation.z = 0.22;
+      this.leftLeg.rotation.x = -0.3 * Math.max(0, lift);
+      this.rightLeg.rotation.x = 0.24 * Math.max(0, lift);
+      this.torsoRoot.rotation.x = -0.08;
+    }
+    this.root.position.y -= landing * 0.12;
+    this.torsoRoot.rotation.x -= landing * 0.12;
   }
 
   private buildTorso(

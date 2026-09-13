@@ -9,7 +9,7 @@ The default config runs landscape mobile emulation for:
 - iPhone 15 / WebKit;
 - Pixel 7 / Chromium.
 
-It checks WebGL canvas boot, mobile HUD, trusted touch/pointer input on the virtual joystick, pause/settings persistence, `?perf=1` metrics, and portrait overflow.
+It checks WebGL canvas boot, entering the title screen, mobile HUD and jump control, trusted touch/pointer input on the virtual joystick, pause/settings persistence, `?perf=1` metrics, and portrait overflow. A second journey resumes an old save from the void, checks the repaired position and preserved narrative choices, then uses the pause recovery action.
 
 Playwright is installed in CI with `--no-save`, so the existing lockfile and `npm ci` contract remain unchanged.
 

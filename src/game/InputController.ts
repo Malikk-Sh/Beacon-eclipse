@@ -9,17 +9,31 @@ export class InputController {
   private readonly consumedLookDelta = new THREE.Vector2();
   private readonly joystickDelta = new THREE.Vector2();
   private enabled = true;
+  private jumpQueued = false;
+  private interactQueued = false;
 
   constructor(
     private readonly joystick: HTMLElement,
     private readonly stick: HTMLElement,
     private readonly lookSurface: HTMLElement,
+    jumpButton?: HTMLButtonElement,
   ) {
     addEventListener('keydown', (event) => {
-      if (this.enabled) this.keys.add(event.code);
+      if (!this.enabled) return;
+      const tag = (event.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      this.keys.add(event.code);
+      if (event.code === 'Space' && !(event.target as HTMLElement | null)?.closest?.('.dialogue-choices')) {
+        event.preventDefault();
+        if (!event.repeat) this.jumpQueued = true;
+      }
+      if (event.code === 'KeyE' && !event.repeat) this.interactQueued = true;
     });
     addEventListener('keyup', (event) => this.keys.delete(event.code));
     addEventListener('blur', () => this.reset());
+    jumpButton?.addEventListener('click', () => {
+      if (this.enabled) this.jumpQueued = true;
+    });
 
     joystick.addEventListener('pointerdown', (event) => {
       if (!this.enabled || this.joystickPointer !== null) return;
@@ -81,6 +95,8 @@ export class InputController {
   }
 
   private reset() {
+    this.jumpQueued = false;
+    this.interactQueued = false;
     const joystickPointer = this.joystickPointer;
     const lookPointer = this.lookPointer;
     this.joystickPointer = null;
@@ -95,6 +111,18 @@ export class InputController {
     if (lookPointer !== null && this.lookSurface.hasPointerCapture(lookPointer)) {
       this.lookSurface.releasePointerCapture(lookPointer);
     }
+  }
+
+  consumeJump(): boolean {
+    const requested = this.enabled && this.jumpQueued;
+    this.jumpQueued = false;
+    return requested;
+  }
+
+  consumeInteract(): boolean {
+    const requested = this.enabled && this.interactQueued;
+    this.interactQueued = false;
+    return requested;
   }
 
   consumeLookDelta() {

@@ -5,6 +5,7 @@ import '../settings.css';
 export class PauseMenu {
   readonly continueButton: HTMLButtonElement;
   readonly backButton: HTMLButtonElement;
+  readonly recoverButton: HTMLButtonElement;
   readonly fullscreenButton: HTMLButtonElement;
   readonly qualitySelect: HTMLSelectElement;
   readonly sfxRange: HTMLInputElement;
@@ -48,6 +49,9 @@ export class PauseMenu {
             </span>
           </label>
         </div>
+        <details class="field-journal"><summary>ЗАПИСИ ПОРТА <span id="journalCount">0 / 3</span></summary><div id="journalEntries"></div></details>
+        <p class="settings-help">WASD — движение · Пробел — прыжок · E — действие<br>На сенсорном экране используй джойстик и кнопки справа.</p>
+        <button type="button" class="settings-row" id="recoverPosition">ВЕРНУТЬСЯ НА БЕЗОПАСНОЕ МЕСТО</button>
         <footer class="settings-actions">
           <button type="button" class="settings-primary" id="continueGame">ПРОДОЛЖИТЬ</button>
           <button type="button" class="settings-secondary" id="backToGame">ЗАКРЫТЬ / НАЗАД</button>
@@ -58,6 +62,7 @@ export class PauseMenu {
 
     this.continueButton = this.require<HTMLButtonElement>('#continueGame');
     this.backButton = this.require<HTMLButtonElement>('#backToGame');
+    this.recoverButton = this.require<HTMLButtonElement>('#recoverPosition');
     this.fullscreenButton = this.require<HTMLButtonElement>('#fullscreenToggle');
     this.fullscreenState = this.require('#fullscreenState');
     this.qualitySelect = this.require<HTMLSelectElement>('#qualitySelect');
@@ -73,6 +78,22 @@ export class PauseMenu {
       audioSystem.setVolume(volume);
       this.setSfxVolume(volume);
     });
+  }
+
+  setJournal(entries: { title: string; text: string }[]): void {
+    this.require('#journalCount').textContent = `${entries.length} / 3`;
+    const container = this.require('#journalEntries');
+    container.replaceChildren();
+    if (!entries.length) container.textContent = 'Осматривай вещи и приёмники. Найденные записи останутся здесь.';
+    for (const entry of entries) {
+      const article = document.createElement('article');
+      const title = document.createElement('h3');
+      const text = document.createElement('p');
+      title.textContent = entry.title;
+      text.textContent = entry.text;
+      article.append(title, text);
+      container.appendChild(article);
+    }
   }
 
   get isOpen(): boolean {

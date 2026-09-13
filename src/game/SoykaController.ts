@@ -25,8 +25,9 @@ export class SoykaController {
     void this.loadHeroModel();
   }
 
-  signal() {
+  signal(target?: THREE.Vector3) {
     this.pulse = 1;
+    if (target) this.lookBackAt(target);
   }
 
   lookBackAt(position: THREE.Vector3) {

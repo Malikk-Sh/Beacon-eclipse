@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { audioSystem } from './AudioSystem';
-import { InputController } from './InputController';
+import type { InputController } from './InputController';
 import { LevVisual } from './LevVisual';
 
 export const PLAYER_SCENE_NAME = 'lev-player';
@@ -19,6 +19,9 @@ export class PlayerController {
   private readonly yAxis = new THREE.Vector3(0, 1, 0);
   private readonly speed = 5.1;
   private moving = false;
+  private verticalSpeed = 0;
+  private onGround = false;
+  private landingWeight = 0;
 
   constructor(private readonly physics: RAPIER.World, scene: THREE.Scene, spawn = new THREE.Vector3(0, 0, 24)) {
     this.object.name = PLAYER_SCENE_NAME;
@@ -50,9 +53,14 @@ export class PlayerController {
       const turnBlend = 1 - Math.exp(-dt * 11);
       this.object.rotation.y += facingDelta * turnBlend;
     }
-    this.visual.update(dt, this.moving);
-    this.visual.root.position.y += PLAYER_VISUAL_GROUND_OFFSET;
-    this.desiredMove.y = -2.2 * dt;
+    if (input.consumeJump() && this.onGround) {
+      this.verticalSpeed = 7.2;
+      this.onGround = false;
+      this.controller.disableSnapToGround();
+      audioSystem.playMovementCue('jump');
+    }
+    this.verticalSpeed = this.onGround ? -2.2 : Math.max(-22, this.verticalSpeed - 22 * dt);
+    this.desiredMove.y = this.verticalSpeed * dt;
 
     this.controller.computeColliderMovement(this.collider, {
       x: this.desiredMove.x,
@@ -60,6 +68,22 @@ export class PlayerController {
       z: this.desiredMove.z,
     });
     const movement = this.controller.computedMovement();
+    this.moving = Math.hypot(movement.x, movement.z) > 0.001;
+    const wasGrounded = this.onGround;
+    this.onGround = this.controller.computedGrounded() && this.verticalSpeed <= 0;
+    if (this.onGround) {
+      if (!wasGrounded && this.verticalSpeed < -3) {
+        this.landingWeight = Math.min(1, -this.verticalSpeed / 10);
+        audioSystem.playMovementCue('land');
+      }
+      this.verticalSpeed = -2.2;
+      this.controller.enableSnapToGround(0.28);
+    } else if (this.verticalSpeed > 0 && movement.y < this.desiredMove.y * 0.5) {
+      this.verticalSpeed = 0; // A low ceiling cancels upward velocity.
+    }
+    this.landingWeight = Math.max(0, this.landingWeight - dt * 4);
+    this.visual.update(dt, this.moving, this.onGround, this.verticalSpeed, this.landingWeight);
+    this.visual.root.position.y += PLAYER_VISUAL_GROUND_OFFSET;
     const current = this.body.translation();
     this.body.setNextKinematicTranslation({
       x: current.x + movement.x,
@@ -68,7 +92,14 @@ export class PlayerController {
     });
   }
 
+  get grounded(): boolean { return this.onGround; }
+
   setPosition(position: THREE.Vector3) {
+    this.verticalSpeed = 0;
+    this.onGround = false;
+    this.moving = false;
+    this.landingWeight = 0;
+    this.controller.enableSnapToGround(0.28);
     this.body.setTranslation({
       x: position.x,
       y: position.y + 1.05,
@@ -85,7 +116,7 @@ export class PlayerController {
   syncVisual() {
     const position = this.body.translation();
     this.object.position.set(position.x, position.y - 1.05, position.z);
-    audioSystem.setPlayerState(this.object.position, this.moving);
+    audioSystem.setPlayerState(this.object.position, this.moving && this.onGround);
   }
 
   get position() {

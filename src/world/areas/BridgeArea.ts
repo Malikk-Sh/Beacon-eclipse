@@ -48,7 +48,7 @@ export class BridgeArea {
     const scale = new THREE.Vector3(1, 1, 1);
     index = 0;
     for (const z of [-19.5, -44.3]) {
-      for (const y of [3.05, 7.1]) {
+      for (const y of [5.25, 8.1]) {
         matrix.compose(new THREE.Vector3(-2.15, y, z), rotationB, scale);
         diagonals.setMatrixAt(index++, matrix);
         matrix.compose(new THREE.Vector3(2.15, y, z), rotationA, scale);

@@ -4,6 +4,7 @@ export type VisualQuality = 'low' | 'medium' | 'high';
 
 export class WeatherSystem {
   private readonly maxStreaks = 900;
+  private readonly focus = new THREE.Vector3();
   private readonly positions = new Float32Array(this.maxStreaks * 6);
   private readonly speeds = new Float32Array(this.maxStreaks);
   private readonly geometry = new THREE.BufferGeometry();
@@ -44,7 +45,8 @@ export class WeatherSystem {
     this.geometry.setDrawRange(0, this.activeStreaks * 2);
   }
 
-  update(dt: number): void {
+  update(dt: number, focus?: THREE.Vector3): void {
+    if (focus) this.focus.copy(focus);
     this.gustPhase += dt * 0.34;
     const windSpeed = 4.15
       + Math.sin(this.gustPhase) * 1.05
@@ -57,7 +59,10 @@ export class WeatherSystem {
       let y = this.positions[offset + 1] - this.speeds[i] * dt;
       let z = this.positions[offset + 2] + zDrift * dt;
 
-      if (y < 0 || x < -38 || z > 50) {
+      const roof = Math.abs(x) < 4.3 && z > 17.5 && z < 34.2 ? 4.5
+        : Math.abs(x) < 5.5 && z < -60 && z > -94 ? 4.7
+          : x > 43.8 && x < 50.2 && z > -6.3 && z < 0.3 ? 3.5 : 0;
+      if (y < roof || Math.abs(x - this.focus.x) > 38 || Math.abs(z - this.focus.z) > 38) {
         this.resetStreak(i, 25 + Math.random() * 4);
         continue;
       }
@@ -90,8 +95,8 @@ export class WeatherSystem {
 
   private resetStreak(index: number, y: number): void {
     const offset = index * 6;
-    const x = (Math.random() - 0.5) * 76;
-    const z = (Math.random() - 0.5) * 112 - 7;
+    const x = this.focus.x + (Math.random() - 0.5) * 76;
+    const z = this.focus.z + (Math.random() - 0.5) * 76;
     this.speeds[index] = 18 + Math.random() * 11;
     this.writeStreak(offset, x, y, z);
   }

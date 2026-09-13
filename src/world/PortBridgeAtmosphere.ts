@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { MaterialLibrary } from './MaterialLibrary';
+import { PUMP_X } from './HarborLayout';
 
 type BridgeSignalState = 'raised' | 'moving' | 'ready';
 type PowerVisualState = 'warehouse' | 'lights' | 'pumps';
@@ -98,7 +99,7 @@ export class PortBridgeAtmosphere {
 
     this.warehouseLight = this.findPointLight(scene, 8, 3.2, -8.3);
     this.portLight = this.findPointLight(scene, -2, 4.5, -4);
-    this.pumpLight = this.findPointLight(scene, -3, 2.7, -12.2);
+    this.pumpLight = this.findPointLight(scene, PUMP_X, 2.7, -12.2);
 
     this.addPortPuddles(scene, materials);
     this.addPowerWave(scene);
@@ -269,7 +270,7 @@ export class PortBridgeAtmosphere {
     const spokeGeometry = new THREE.BoxGeometry(0.48, 0.035, 0.04);
     const hubGeometry = new THREE.CylinderGeometry(0.075, 0.075, 0.07, 10);
 
-    for (const x of [-3.45, -2.55]) {
+    for (const x of [PUMP_X - 0.45, PUMP_X + 0.45]) {
       const rotor = new THREE.Group();
       rotor.position.set(x, 1.42, -11.82);
 
