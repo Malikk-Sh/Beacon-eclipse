@@ -5,7 +5,9 @@ const pixel7Landscape = devices['Pixel 7 landscape'];
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 90_000,
+  // GitHub-hosted Linux runners use software WebGL for Chromium. A full
+  // production boot plus reload can legitimately take well over 90 seconds.
+  timeout: 240_000,
   expect: {
     timeout: 15_000,
   },
