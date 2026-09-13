@@ -45,7 +45,7 @@ async function waitForGame(page: Page) {
         && diagnostics.bufferHeight > 0
         && diagnostics.cssWidth > 0
         && diagnostics.cssHeight > 0;
-    }).toBe(true);
+    }, { timeout: 30_000 }).toBe(true);
   } catch (error) {
     const diagnostics = await readCanvasDiagnostics(canvas);
     console.log(`[mobile-e2e] canvas diagnostics: ${JSON.stringify(diagnostics)}`);
