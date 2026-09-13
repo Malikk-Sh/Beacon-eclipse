@@ -36,7 +36,7 @@ jobs:
         run: npx playwright install --with-deps chromium webkit
 
       - name: Run mobile smoke tests
-        run: npm run test:e2e
+        run: xvfb-run -a npm run test:e2e
 
       - name: Upload Playwright report
         if: always()
