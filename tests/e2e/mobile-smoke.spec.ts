@@ -94,7 +94,61 @@ test('mobile WebGL smoke journey', async ({ page }) => {
     expect(dimensions.hasWebGL2).toBe(true);
   });
 
+  await test.step('pause settings persist graphics quality', async () => {
+    const pauseButton = page.getByRole('button', { name: 'Пауза' });
+    const continueButton = page.getByRole('button', { name: 'ПРОДОЛЖИТЬ' });
+
+    // This step verifies settings behavior, not touch fidelity. Use DOM activation
+    // here so trusted touch emulation remains isolated from the functional checks.
+    await activateButton(pauseButton);
+    await expect(page.getByRole('dialog', { name: 'Пауза и настройки' })).toBeVisible();
+
+    const quality = page.locator('#qualitySelect');
+    await quality.selectOption('low');
+    await expect(quality).toHaveValue('low');
+    await activateButton(continueButton);
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    canvas = await waitForGame(page);
+    await activateButton(pauseButton);
+    await expect(page.locator('#qualitySelect')).toHaveValue('low');
+    await activateButton(continueButton);
+  });
+
+  await test.step('runtime audit exposes viewport and canvas metrics', async () => {
+    const audit = page.locator('[data-runtime-performance="true"]');
+    await expect(audit).toBeVisible();
+    await expect(audit).toContainText('RUNTIME AUDIT');
+    await expect(audit).toContainText('FPS avg');
+    await expect(audit).toContainText('viewport');
+    await expect(audit).toContainText('canvas CSS');
+    await expect(audit).toContainText('effective pixel ratio');
+
+    const text = await audit.textContent();
+    expect(text).toMatch(/FPS avg \d+(?:\.\d+)?/);
+    expect(text).toMatch(/viewport \d+x\d+/);
+    expect(text).toMatch(/canvas CSS \d+x\d+\s+\|\s+buffer \d+x\d+/);
+  });
+
   if (!browserStackRun) {
+    await test.step('portrait viewport stays inside the page', async () => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expect.poll(async () => canvas.evaluate((element) => ({
+        width: (element as HTMLCanvasElement).clientWidth,
+        height: (element as HTMLCanvasElement).clientHeight,
+      }))).toEqual({ width: 390, height: 844 });
+
+      const layout = await page.evaluate(() => ({
+        innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      }));
+      expect(layout.scrollWidth).toBeLessThanOrEqual(layout.innerWidth + 1);
+      await expect(page.getByRole('button', { name: 'Пауза' })).toBeVisible();
+    });
+
+    // Keep trusted touch input last. On GitHub's software-WebGL Chromium runner the
+    // mobile touchscreen path is significantly slower than normal DOM operations;
+    // isolating it at the end prevents that cost from obscuring settings/layout failures.
     await test.step('joystick receives trusted touch pointer input', async () => {
       const joystick = page.locator('#joystick');
       const box = await joystick.boundingBox();
@@ -149,61 +203,6 @@ test('mobile WebGL smoke journey', async ({ page }) => {
       expect(probe.pointerType).toBe('touch');
       expect(probe.transformOnDown).not.toBe('translate(0px, 0px)');
       expect(probe.transformOnUp).toBe('translate(0px, 0px)');
-    });
-  }
-
-  await test.step('pause settings persist graphics quality', async () => {
-    const pauseButton = page.getByRole('button', { name: 'Пауза' });
-    const continueButton = page.getByRole('button', { name: 'ПРОДОЛЖИТЬ' });
-
-    // This step verifies settings behavior, not touch fidelity. Chromium's emulated
-    // touchscreen can hang after a prior trusted touch sequence on software WebGL CI,
-    // so use DOM activation here. Touch input is covered independently above and on
-    // real devices via BrowserStack.
-    await activateButton(pauseButton);
-    await expect(page.getByRole('dialog', { name: 'Пауза и настройки' })).toBeVisible();
-
-    const quality = page.locator('#qualitySelect');
-    await quality.selectOption('low');
-    await expect(quality).toHaveValue('low');
-    await activateButton(continueButton);
-
-    await page.reload({ waitUntil: 'domcontentloaded' });
-    canvas = await waitForGame(page);
-    await activateButton(pauseButton);
-    await expect(page.locator('#qualitySelect')).toHaveValue('low');
-    await activateButton(continueButton);
-  });
-
-  await test.step('runtime audit exposes viewport and canvas metrics', async () => {
-    const audit = page.locator('[data-runtime-performance="true"]');
-    await expect(audit).toBeVisible();
-    await expect(audit).toContainText('RUNTIME AUDIT');
-    await expect(audit).toContainText('FPS avg');
-    await expect(audit).toContainText('viewport');
-    await expect(audit).toContainText('canvas CSS');
-    await expect(audit).toContainText('effective pixel ratio');
-
-    const text = await audit.textContent();
-    expect(text).toMatch(/FPS avg \d+(?:\.\d+)?/);
-    expect(text).toMatch(/viewport \d+x\d+/);
-    expect(text).toMatch(/canvas CSS \d+x\d+\s+\|\s+buffer \d+x\d+/);
-  });
-
-  if (!browserStackRun) {
-    await test.step('portrait viewport stays inside the page', async () => {
-      await page.setViewportSize({ width: 390, height: 844 });
-      await expect.poll(async () => canvas.evaluate((element) => ({
-        width: (element as HTMLCanvasElement).clientWidth,
-        height: (element as HTMLCanvasElement).clientHeight,
-      }))).toEqual({ width: 390, height: 844 });
-
-      const layout = await page.evaluate(() => ({
-        innerWidth,
-        scrollWidth: document.documentElement.scrollWidth,
-      }));
-      expect(layout.scrollWidth).toBeLessThanOrEqual(layout.innerWidth + 1);
-      await expect(page.getByRole('button', { name: 'Пауза' })).toBeVisible();
     });
   }
 
