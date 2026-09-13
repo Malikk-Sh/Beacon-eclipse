@@ -138,6 +138,7 @@ export class SchoolArea {
       for (let z = -5; z >= -29; z -= 6) {
         matrix.makeTranslation(x, 1.15, z);
         lockerBodies.setMatrixAt(bodyIndex++, matrix);
+        this.addCollider(x, z, 1.15, 2.3, 2.8, 0);
 
         for (const offsetZ of [-0.64, 0.64]) {
           matrix.makeTranslation(innerX, 1.15, z + offsetZ);

@@ -22,6 +22,8 @@ import { SchoolReconstruction } from './game/SchoolReconstruction';
 import { GraphicsQuality, SettingsStore } from './game/SettingsStore';
 import { SoykaController } from './game/SoykaController';
 import { ThirdPersonCamera } from './game/ThirdPersonCamera';
+import { FirstPersonCamera } from './game/FirstPersonCamera';
+import type { CameraMode } from './game/SettingsStore';
 import { createDefaultStoryState } from './game/StoryState';
 import { GameWorld } from './game/World';
 import { WarehouseFarewell } from './game/WarehouseFarewell';
@@ -30,6 +32,8 @@ import { PauseMenu } from './ui/PauseMenu';
 import { VerticalSliceEnding } from './ui/VerticalSliceEnding';
 import { WarehouseCutoff } from './ui/WarehouseCutoff';
 import { VisualFoundation } from './world/VisualFoundation';
+import { WorldDetailPass } from './world/WorldDetailPass';
+import './premium.css';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('Missing #app root');
@@ -48,7 +52,7 @@ energy.restore(storyState.energy);
 const hud = new Hud(app, energy);
 const pauseMenu = new PauseMenu(app);
 const sliceEnding = new VerticalSliceEnding(app);
-const dialogue = new DialogueSystem(hud);
+const dialogue = new DialogueSystem(hud, audioSystem);
 const world = new GameWorld(physics);
 const harbor = new HarborDistrict(world.scene, physics);
 const visualFoundation = new VisualFoundation(world.scene);
@@ -66,13 +70,14 @@ const school = new SchoolReconstruction(world.scene, physics, dialogue, {
     persist(true);
   },
 }, world.cameraObstacles);
+new WorldDetailPass(world.scene, physics);
 const spawn = new THREE.Vector3(
   storyState.player.position.x,
   storyState.player.position.y,
   storyState.player.position.z,
 );
 const player = new PlayerController(physics, world.scene, spawn);
-const soyka = new SoykaController(world.scene);
+const soyka = new SoykaController(world.scene, physics, player.collider, world.cameraObstacles);
 
 if (storyState.progress.lighthousePowered) world.unlockLighthouseDoor(true);
 for (const system of energy.activeSystems) world.setPowerState(system, true);
@@ -89,8 +94,10 @@ hud.refreshEnergy();
 physics.step();
 const traversal = new TraversalSafety(physics, player, storyState.progress, () => world.isBridgeReady);
 const recoveredOnLoad = traversal.restore(storyState.player.position) || saves.repairedPosition;
+soyka.reset(player.position);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+let renderRequested = true;
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -106,6 +113,7 @@ const qualityPresets: Record<GraphicsQuality, { pixelRatio: number; shadows: boo
 };
 
 function applyGraphicsQuality(quality: GraphicsQuality) {
+  renderRequested = true;
   const preset = qualityPresets[quality];
   renderer.setPixelRatio(Math.min(devicePixelRatio, preset.pixelRatio));
   renderer.shadowMap.enabled = preset.shadows;
@@ -118,6 +126,7 @@ applyGraphicsQuality(settings.quality);
 
 const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 500);
 const cameraController = new ThirdPersonCamera(camera, physics, player.collider, world.cameraObstacles);
+const firstPersonCamera = new FirstPersonCamera(camera, physics, player.collider);
 const input = new InputController(hud.joystick, hud.stick, renderer.domElement, hud.jumpButton);
 const interactions = new InteractionSystem(hud.interactButton);
 const pauseButtonCandidate = app.querySelector<HTMLButtonElement>('.pause');
@@ -132,6 +141,31 @@ let yaw = storyState.player.yaw;
 let pitch = -0.12;
 let autosaveElapsed = 0;
 let gameElapsed = 0;
+let cameraMode: CameraMode = 'third';
+
+function setCameraMode(mode: CameraMode, save = true): void {
+  renderRequested = true;
+  cameraMode = mode;
+  hud.setCameraMode(mode);
+  input.setFirstPerson(mode === 'first');
+  player.setFirstPerson(mode === 'first');
+  camera.fov = mode === 'first' ? 68 : 55;
+  camera.near = mode === 'first' ? 0.06 : 0.1;
+  camera.updateProjectionMatrix();
+  cameraController.reset();
+  firstPersonCamera.reset();
+  pitch = mode === 'first' ? 0 : -0.12;
+  if (mode === 'first') firstPersonCamera.update(player.position, yaw, pitch, 0);
+  else cameraController.update(player.position, yaw, pitch, 1 / 60);
+  pauseMenu.cameraSelect.value = mode;
+  if (save) { settings.cameraMode = mode; settingsStore.save(settings); }
+}
+
+hud.cameraButton.addEventListener('click', () => {
+  if (journeyStarted && !paused && !hud.isEnergyOpen && !cutoff.isOpen) setCameraMode(cameraMode === 'first' ? 'third' : 'first');
+});
+pauseMenu.cameraSelect.addEventListener('change', () => setCameraMode(pauseMenu.cameraSelect.value === 'first' ? 'first' : 'third'));
+input.onPointerUnlock = () => setPaused(true);
 
 const cutoff = new WarehouseCutoff(app, () => {
   if (paused || sliceEnded) return;
@@ -189,6 +223,7 @@ function persist(showIndicator = false) {
 function setPaused(next: boolean) {
   if (!journeyStarted || sliceEnded || paused === next) return;
   paused = next;
+  renderRequested = true;
   input.setEnabled(!paused && !hud.isEnergyOpen && !cutoff.isOpen);
   hud.setPaused(paused);
   cutoff.setPaused(paused);
@@ -214,6 +249,8 @@ pauseMenu.recoverButton.addEventListener('click', () => {
   hud.closeEnergy();
   traversal.recover();
   cameraController.reset();
+  firstPersonCamera.reset();
+  soyka.reset(player.position);
   setPaused(false);
   hud.notify('Лев вернулся на устойчивую поверхность. Сюжетный прогресс сохранён.');
   persist(true);
@@ -278,7 +315,7 @@ if (loadedState) hud.hideDialogue();
 
 function syncJournal() {
   pauseMenu.setJournal(HARBOR_DISCOVERIES.filter((item) => storyState.choices[`harbor:${item.id}`] === 'read')
-    .map((item) => ({ title: item.title, text: item.text })));
+    .map((item) => ({ title: item.title, text: item.text })), HARBOR_DISCOVERIES.length);
 }
 syncJournal();
 for (const item of HARBOR_DISCOVERIES) {
@@ -631,6 +668,7 @@ input.setEnabled(false);
 hud.setPaused(true);
 new OpeningScreen(app, Boolean(loadedState), () => {
   journeyStarted = true;
+  setCameraMode(settings.cameraMode, false);
   hud.setPaused(false);
   input.setEnabled(true);
   void audioSystem.unlock().catch((error) => console.warn('Audio unavailable', error));
@@ -653,15 +691,21 @@ function animate() {
 
   if (journeyStarted && !paused && !sliceEnded) {
     gameElapsed += dt;
+    // Release pointer lock for clickable replies without pausing their story timer.
+    input.setPointerLockAllowed(!dialogue.isChoosing);
     const controlsBlocked = hud.isEnergyOpen || cutoff.isOpen;
     input.setEnabled(!controlsBlocked);
     hud.interactButton.disabled = controlsBlocked || farewell.active;
     hud.soykaButton.disabled = controlsBlocked || farewell.active;
     hud.jumpButton.disabled = controlsBlocked || farewell.active;
+    hud.cameraButton.disabled = controlsBlocked || farewell.active;
     input.update();
+    if (input.consumeCameraToggle() && !farewell.active) setCameraMode(cameraMode === 'first' ? 'third' : 'first');
     const look = input.consumeLookDelta();
-    yaw -= look.x * 0.004;
-    pitch = THREE.MathUtils.clamp(pitch - look.y * 0.003, -0.55, 0.25);
+    yaw -= look.x * 0.004 * settings.cameraSensitivity;
+    pitch = THREE.MathUtils.clamp(pitch - look.y * 0.003 * settings.cameraSensitivity,
+      cameraMode === 'first' ? -1.32 : -0.55, cameraMode === 'first' ? 1.32 : 0.25);
+    hud.setHeading(yaw);
 
     player.update(input, yaw, dt);
     physics.timestep = dt;
@@ -671,6 +715,8 @@ function animate() {
       input.setEnabled(false);
       farewell.cancel();
       cameraController.reset();
+      firstPersonCamera.reset();
+      soyka.reset(player.position);
       audioSystem.playMovementCue('water');
       hud.notify('Сильное течение. Лев выбрался на последнее безопасное место.');
       persist(true);
@@ -708,7 +754,7 @@ function animate() {
     cutoff.update(dt);
     interactions.update(player.position, player.grounded && !controlsBlocked && !farewell.active);
     if (input.consumeInteract()) interactions.trigger();
-    soyka.update(player.position, gameElapsed, dt);
+    soyka.update(player.position, gameElapsed, dt, yaw);
     memory.update(dt);
     school.update(dt, player);
     world.update(dt);
@@ -721,14 +767,19 @@ function animate() {
       persist(false);
     }
 
-    cameraController.update(player.position, yaw, pitch, dt);
+    if (cameraMode === 'first') firstPersonCamera.update(player.position, yaw, pitch, dt, player.isMoving, player.grounded, settings.headMotion);
+    else cameraController.update(player.position, yaw, pitch, dt);
   }
 
   if (!journeyStarted) {
     visualFoundation.update(dt, player.position);
     harbor.update(dt);
   }
-  renderer.render(world.scene, camera);
+  // Paused geometry is static. Redraw only for a resize or an explicit settings change.
+  if (!paused || renderRequested) {
+    renderer.render(world.scene, camera);
+    renderRequested = false;
+  }
 }
 
 animate();
@@ -741,6 +792,7 @@ addEventListener('visibilitychange', () => {
 });
 addEventListener('pagehide', () => persist(false));
 addEventListener('resize', () => {
+  renderRequested = true;
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);

@@ -11,6 +11,11 @@ export class InputController {
   private enabled = true;
   private jumpQueued = false;
   private interactQueued = false;
+  private cameraQueued = false;
+  private firstPerson = false;
+  private wasPointerLocked = false;
+  private pointerLockAllowed = true;
+  onPointerUnlock?: () => void;
 
   constructor(
     private readonly joystick: HTMLElement,
@@ -28,6 +33,7 @@ export class InputController {
         if (!event.repeat) this.jumpQueued = true;
       }
       if (event.code === 'KeyE' && !event.repeat) this.interactQueued = true;
+      if (event.code === 'KeyV' && !event.repeat) this.cameraQueued = true;
     });
     addEventListener('keyup', (event) => this.keys.delete(event.code));
     addEventListener('blur', () => this.reset());
@@ -59,11 +65,16 @@ export class InputController {
 
     lookSurface.addEventListener('pointerdown', (event) => {
       if (!this.enabled || event.button !== 0 || this.lookPointer !== null) return;
+      if (this.firstPerson && this.pointerLockAllowed && event.pointerType === 'mouse' && lookSurface.requestPointerLock
+        && this.lookSurface.ownerDocument.pointerLockElement !== lookSurface) {
+        try { Promise.resolve(lookSurface.requestPointerLock()).catch(() => undefined); } catch { /* Drag remains available. */ }
+      }
       this.lookPointer = event.pointerId;
       lookSurface.setPointerCapture(event.pointerId);
       this.lastLook.set(event.clientX, event.clientY);
     });
     lookSurface.addEventListener('pointermove', (event) => {
+      if (this.lookSurface.ownerDocument.pointerLockElement === lookSurface) return;
       if (event.pointerId !== this.lookPointer) return;
       this.lookDelta.x += event.clientX - this.lastLook.x;
       this.lookDelta.y += event.clientY - this.lastLook.y;
@@ -75,6 +86,19 @@ export class InputController {
     lookSurface.addEventListener('pointerup', releaseLook);
     lookSurface.addEventListener('pointercancel', releaseLook);
     lookSurface.addEventListener('lostpointercapture', releaseLook);
+    this.lookSurface.ownerDocument.addEventListener('mousemove', (event) => {
+      if (!this.enabled || this.lookSurface.ownerDocument.pointerLockElement !== lookSurface) return;
+      this.lookDelta.x += event.movementX;
+      this.lookDelta.y += event.movementY;
+    });
+    this.lookSurface.ownerDocument.addEventListener('pointerlockchange', () => {
+      const locked = this.lookSurface.ownerDocument.pointerLockElement === lookSurface;
+      if (this.wasPointerLocked && !locked) {
+        this.reset();
+        if (this.enabled && this.firstPerson && this.pointerLockAllowed) this.onPointerUnlock?.();
+      }
+      this.wasPointerLocked = locked;
+    });
   }
 
   private readonly lastLook = new THREE.Vector2();
@@ -91,12 +115,14 @@ export class InputController {
   setEnabled(enabled: boolean) {
     if (this.enabled === enabled) return;
     this.enabled = enabled;
+    if (!enabled && this.lookSurface.ownerDocument.pointerLockElement === this.lookSurface) this.lookSurface.ownerDocument.exitPointerLock?.();
     this.reset();
   }
 
   private reset() {
     this.jumpQueued = false;
     this.interactQueued = false;
+    this.cameraQueued = false;
     const joystickPointer = this.joystickPointer;
     const lookPointer = this.lookPointer;
     this.joystickPointer = null;
@@ -122,6 +148,23 @@ export class InputController {
   consumeInteract(): boolean {
     const requested = this.enabled && this.interactQueued;
     this.interactQueued = false;
+    return requested;
+  }
+
+  setFirstPerson(enabled: boolean): void {
+    this.firstPerson = enabled;
+    if (!enabled && this.lookSurface.ownerDocument.pointerLockElement === this.lookSurface) this.lookSurface.ownerDocument.exitPointerLock?.();
+    this.lookDelta.set(0, 0);
+  }
+
+  setPointerLockAllowed(allowed: boolean): void {
+    this.pointerLockAllowed = allowed;
+    if (!allowed && this.lookSurface.ownerDocument.pointerLockElement === this.lookSurface) this.lookSurface.ownerDocument.exitPointerLock?.();
+  }
+
+  consumeCameraToggle(): boolean {
+    const requested = this.enabled && this.cameraQueued;
+    this.cameraQueued = false;
     return requested;
   }
 

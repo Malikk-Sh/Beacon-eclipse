@@ -1,121 +1,76 @@
 import * as THREE from 'three';
-import { AssetManager, type ModelInstance } from '../world/AssetManager';
+import RAPIER from '@dimforge/rapier3d-compat';
 import { audioSystem } from './AudioSystem';
-
-const SOYKA_MODEL_URL = '/assets/DRN_Soyka.gltf';
-const SOYKA_VISUAL_SCALE = 0.52;
+import { DroneNavigation } from './DroneNavigation';
+import { SoykaVisual } from './SoykaVisual';
+import type { CameraObstacle } from './ThirdPersonCamera';
 
 export class SoykaController {
   readonly object = new THREE.Group();
-  private readonly assets = new AssetManager();
-  private eye: THREE.Object3D | null = null;
-  private readonly eyeBaseScale = new THREE.Vector3(1, 1, 1);
-  private readonly desiredPosition = new THREE.Vector3();
-  private readonly followDelta = new THREE.Vector3();
-  private model: ModelInstance | null = null;
+  private readonly visual = new SoykaVisual();
+  private readonly navigation: DroneNavigation;
+  private readonly desired = new THREE.Vector3();
+  private readonly interest = new THREE.Vector3();
+  private readonly linger = new THREE.Vector3();
   private pulse = 0;
   private lookBackRemaining = 0;
-  private readonly lookBackTarget = new THREE.Vector3();
-  private readonly lingerPosition = new THREE.Vector3();
+  private yaw = 0;
 
-  constructor(scene: THREE.Scene) {
-    this.object.scale.setScalar(SOYKA_VISUAL_SCALE);
-    this.createProceduralFallback();
+  constructor(scene: THREE.Scene, physics: RAPIER.World, playerCollider: RAPIER.Collider,
+    overhead: readonly CameraObstacle[] = []) {
+    this.navigation = new DroneNavigation(physics, playerCollider, overhead);
+    this.object.name = 'soyka-companion';
+    this.object.add(this.visual.root);
     scene.add(this.object);
-    void this.loadHeroModel();
   }
 
-  signal(target?: THREE.Vector3) {
+  reset(position: THREE.Vector3): void {
+    this.navigation.reset(position);
+    this.object.visible = this.navigation.ready;
+    this.object.position.copy(this.navigation.position);
+    this.lookBackRemaining = 0;
+  }
+
+  signal(target?: THREE.Vector3): void {
     this.pulse = 1;
     if (target) this.lookBackAt(target);
   }
 
-  lookBackAt(position: THREE.Vector3) {
-    this.lookBackTarget.copy(position);
-    this.lingerPosition.copy(this.object.position);
+  lookBackAt(position: THREE.Vector3): void {
+    this.interest.copy(position);
+    this.linger.copy(this.object.position);
     this.lookBackRemaining = 2.4;
   }
 
-  update(target: THREE.Vector3, elapsed: number, dt: number) {
-    this.desiredPosition.set(
-      target.x - 1.62 + Math.sin(elapsed * 1.2) * 0.06,
-      target.y + 1.62 + Math.sin(elapsed * 2.1) * 0.09 + Math.sin(elapsed * 0.57 + 0.8) * 0.025,
-      target.z + 0.35,
-    );
-    if (this.lookBackRemaining > 0.8) this.desiredPosition.copy(this.lingerPosition);
-
-    this.followDelta.copy(this.desiredPosition).sub(this.object.position);
-    const followBlend = 1 - Math.exp(-dt * 7.5);
-    this.object.position.lerp(this.desiredPosition, followBlend);
-
-    const orientationBlend = 1 - Math.exp(-dt * 6.2);
-    const bank = THREE.MathUtils.clamp(-this.followDelta.x * 0.08, -0.13, 0.13);
-    const pitch = THREE.MathUtils.clamp(this.followDelta.z * 0.025, -0.06, 0.06);
-    let yaw = Math.sin(elapsed * 0.45) * 0.16
-      + THREE.MathUtils.clamp(this.followDelta.x * 0.045, -0.08, 0.08);
+  update(target: THREE.Vector3, elapsed: number, dt: number, heading = 0): void {
+    // Only retry placement when no collision-free initial spawn was possible.
+    if (!this.navigation.ready) { this.reset(target); if (!this.navigation.ready) return; }
+    // Stay beside the player, then fold in behind through narrow doors.
+    const sideX = -Math.cos(heading) * 1.2 + Math.sin(heading) * 0.55;
+    const sideZ = Math.sin(heading) * 1.2 + Math.cos(heading) * 0.55;
+    this.desired.set(target.x + sideX, target.y + 1.67 + Math.sin(elapsed * 1.6) * 0.024, target.z + sideZ);
+    if (!this.navigation.isClear(this.desired)) {
+      this.desired.set(target.x + Math.sin(heading) * 1.15, target.y + 1.65, target.z + Math.cos(heading) * 1.15);
+      if (!this.navigation.isClear(this.desired)) this.desired.copy(target).add(new THREE.Vector3(0, 1.72, 0));
+    }
+    if (this.lookBackRemaining > 0.8 && this.linger.distanceTo(target) < 5) this.desired.copy(this.linger);
+    this.object.position.copy(this.navigation.update(this.desired, dt));
+    const velocity = this.navigation.velocity;
+    const speed = velocity.length();
+    let aim = heading;
     if (this.lookBackRemaining > 0) {
-      yaw = Math.atan2(this.object.position.x - this.lookBackTarget.x, this.object.position.z - this.lookBackTarget.z);
+      aim = Math.atan2(this.object.position.x - this.interest.x, this.object.position.z - this.interest.z);
       this.lookBackRemaining = Math.max(0, this.lookBackRemaining - dt);
-    }
-    const rollDrift = Math.sin(elapsed * 0.72) * 0.022;
-
-    this.object.rotation.x = THREE.MathUtils.lerp(this.object.rotation.x, pitch, orientationBlend);
-    const yawDelta = Math.atan2(Math.sin(yaw - this.object.rotation.y), Math.cos(yaw - this.object.rotation.y));
-    this.object.rotation.y += yawDelta * orientationBlend;
-    this.object.rotation.z = THREE.MathUtils.lerp(this.object.rotation.z, bank + rollDrift, orientationBlend);
+    } else if (speed > 0.55) aim = Math.atan2(-velocity.x, -velocity.z);
+    const delta = Math.atan2(Math.sin(aim - this.yaw), Math.cos(aim - this.yaw));
+    this.yaw += delta * (1 - Math.exp(-dt * 3.2));
+    const localSide = velocity.x * Math.cos(this.yaw) - velocity.z * Math.sin(this.yaw);
+    const localForward = -velocity.x * Math.sin(this.yaw) - velocity.z * Math.cos(this.yaw);
+    this.object.rotation.y = this.yaw;
+    this.visual.root.rotation.x = THREE.MathUtils.damp(this.visual.root.rotation.x, Math.min(0.13, localForward * 0.026), 5, dt);
+    this.visual.root.rotation.z = THREE.MathUtils.damp(this.visual.root.rotation.z, THREE.MathUtils.clamp(-localSide * 0.04, -0.15, 0.15), 5, dt);
+    this.visual.update(dt, elapsed, speed, this.pulse);
+    this.pulse = Math.max(0, this.pulse - dt * 1.6);
     audioSystem.setSoykaPosition(this.object.position);
-
-    if (!this.eye) return;
-    const pulseWave = this.pulse > 0 ? Math.sin((1 - this.pulse) * Math.PI) : 0;
-    const pulseScale = 1 + this.pulse * 0.36 + pulseWave * 0.12;
-    this.eye.scale.copy(this.eyeBaseScale).multiplyScalar(pulseScale);
-    this.pulse = Math.max(0, this.pulse - dt * 2.5);
-  }
-
-  private createProceduralFallback() {
-    const body = new THREE.Mesh(
-      new THREE.SphereGeometry(0.48, 16, 12),
-      new THREE.MeshStandardMaterial({ color: 0x2f363b, roughness: 0.45, metalness: 0.8 }),
-    );
-    body.castShadow = true;
-    this.object.add(body);
-
-    const eye = new THREE.Mesh(
-      new THREE.SphereGeometry(0.13, 12, 8),
-      new THREE.MeshBasicMaterial({ color: 0x4fc3ff }),
-    );
-    eye.position.z = -0.46;
-    this.object.add(eye);
-    this.eye = eye;
-    this.eyeBaseScale.copy(eye.scale);
-  }
-
-  private async loadHeroModel() {
-    const model = await this.assets.instantiate(SOYKA_MODEL_URL, {}, 'СОЙКА');
-    if (model.fallback) {
-      this.assets.disposeInstance(model);
-      return;
-    }
-
-    this.disposeProceduralFallback();
-    this.model = model;
-    this.object.add(model.root);
-
-    const eye = model.root.getObjectByName('eye');
-    this.eye = eye ?? null;
-    if (this.eye) this.eyeBaseScale.copy(this.eye.scale);
-  }
-
-  private disposeProceduralFallback() {
-    for (const child of [...this.object.children]) {
-      child.traverse((object) => {
-        if (!(object instanceof THREE.Mesh)) return;
-        object.geometry.dispose();
-        const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach((material) => material.dispose());
-      });
-      this.object.remove(child);
-    }
-    this.eye = null;
   }
 }

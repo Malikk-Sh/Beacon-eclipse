@@ -9,6 +9,8 @@ export class PauseMenu {
   readonly fullscreenButton: HTMLButtonElement;
   readonly qualitySelect: HTMLSelectElement;
   readonly sfxRange: HTMLInputElement;
+  readonly cameraSelect: HTMLSelectElement;
+  readonly motionToggle: HTMLInputElement;
 
   private readonly overlay: HTMLElement;
   private readonly fullscreenState: HTMLElement;
@@ -24,11 +26,15 @@ export class PauseMenu {
     this.overlay.innerHTML = `
       <section class="settings-card">
         <header class="settings-header">
-          <small>ПАУЗА</small>
-          <h2>СИСТЕМНЫЕ НАСТРОЙКИ</h2>
-          <p>Шторм подождёт. Диалоги и выборы также остановлены.</p>
+          <small>ГЛАВА I · СЕВЕРНЫЙ ПОРТ</small>
+          <h2>ШТОРМ ПОДОЖДЁТ</h2>
+          <p>Твоя история остаётся здесь. Диалоги и выборы приостановлены.</p>
         </header>
         <div class="settings-list">
+          <label class="settings-row settings-quality" for="cameraSelect"><span>ПЕРСПЕКТИВА</span>
+            <select id="cameraSelect"><option value="third">ОТ ТРЕТЬЕГО ЛИЦА</option><option value="first">ОТ ПЕРВОГО ЛИЦА</option></select>
+          </label>
+          <label class="settings-row" for="headMotion"><span>ДВИЖЕНИЕ КАМЕРЫ ПРИ ХОДЬБЕ</span><input id="headMotion" type="checkbox"></label>
           <button type="button" class="settings-row" id="fullscreenToggle">
             <span>ПОЛНОЭКРАННЫЙ РЕЖИМ</span>
             <b id="fullscreenState">ВЫКЛ</b>
@@ -48,9 +54,12 @@ export class PauseMenu {
               <b id="sfxVolumeValue">90%</b>
             </span>
           </label>
+          <label class="settings-row settings-volume" for="voiceVolume"><span>ГОЛОСОВЫЕ ЗВУКИ</span>
+            <span class="settings-volume-control"><input id="voiceVolume" type="range" min="0" max="100" step="5" aria-label="Голосовые звуки"><b id="voiceVolumeValue">65%</b></span>
+          </label>
         </div>
-        <details class="field-journal"><summary>ЗАПИСИ ПОРТА <span id="journalCount">0 / 3</span></summary><div id="journalEntries"></div></details>
-        <p class="settings-help">WASD — движение · Пробел — прыжок · E — действие<br>На сенсорном экране используй джойстик и кнопки справа.</p>
+        <details class="field-journal"><summary>ЗАПИСИ ПОРТА <span id="journalCount"></span></summary><div id="journalEntries"></div></details>
+        <p class="settings-help">WASD — движение · Пробел — прыжок · E — действие · V — сменить вид<br>От первого лица: клик по сцене — свободный осмотр, Esc — пауза.<br>Голосовые звуки имитируют речь; текст диалогов остаётся доступен.</p>
         <button type="button" class="settings-row" id="recoverPosition">ВЕРНУТЬСЯ НА БЕЗОПАСНОЕ МЕСТО</button>
         <footer class="settings-actions">
           <button type="button" class="settings-primary" id="continueGame">ПРОДОЛЖИТЬ</button>
@@ -68,6 +77,26 @@ export class PauseMenu {
     this.qualitySelect = this.require<HTMLSelectElement>('#qualitySelect');
     this.sfxRange = this.require<HTMLInputElement>('#sfxVolume');
     this.sfxValue = this.require('#sfxVolumeValue');
+    this.cameraSelect = this.require<HTMLSelectElement>('#cameraSelect');
+    this.motionToggle = this.require<HTMLInputElement>('#headMotion');
+    const settings = this.settingsStore.load();
+    this.cameraSelect.value = settings.cameraMode;
+    this.motionToggle.checked = settings.headMotion;
+    this.motionToggle.addEventListener('change', () => {
+      settings.headMotion = this.motionToggle.checked;
+      this.settingsStore.save(settings);
+    });
+    const voiceRange = this.require<HTMLInputElement>('#voiceVolume');
+    const voiceValue = this.require('#voiceVolumeValue');
+    voiceRange.value = String(Math.round(settings.voiceVolume * 100));
+    voiceValue.textContent = `${voiceRange.value}%`;
+    audioSystem.setVoiceVolume(settings.voiceVolume);
+    voiceRange.addEventListener('input', () => {
+      settings.voiceVolume = Number(voiceRange.value) / 100;
+      voiceValue.textContent = `${voiceRange.value}%`;
+      audioSystem.setVoiceVolume(settings.voiceVolume);
+      this.settingsStore.save(settings);
+    });
 
     this.setSfxVolume(this.settingsStore.load().sfxVolume);
     this.sfxRange.addEventListener('input', () => {
@@ -80,8 +109,8 @@ export class PauseMenu {
     });
   }
 
-  setJournal(entries: { title: string; text: string }[]): void {
-    this.require('#journalCount').textContent = `${entries.length} / 3`;
+  setJournal(entries: { title: string; text: string }[], total: number): void {
+    this.require('#journalCount').textContent = `${entries.length} / ${total}`;
     const container = this.require('#journalEntries');
     container.replaceChildren();
     if (!entries.length) container.textContent = 'Осматривай вещи и приёмники. Найденные записи останутся здесь.';

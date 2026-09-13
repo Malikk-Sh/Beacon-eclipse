@@ -1,10 +1,14 @@
 export type GraphicsQuality = 'low' | 'medium' | 'high';
+export type CameraMode = 'third' | 'first';
 
 export interface SettingsState {
   quality: GraphicsQuality;
   musicVolume: number;
   sfxVolume: number;
   cameraSensitivity: number;
+  cameraMode: CameraMode;
+  voiceVolume: number;
+  headMotion: boolean;
 }
 
 const SETTINGS_KEY = 'beacon-eclipse.settings.v1';
@@ -14,6 +18,9 @@ const DEFAULT_SETTINGS: SettingsState = {
   musicVolume: 0.8,
   sfxVolume: 0.9,
   cameraSensitivity: 1,
+  cameraMode: 'third',
+  voiceVolume: 0.65,
+  headMotion: true,
 };
 
 let cachedSettings: SettingsState | null = null;
@@ -44,6 +51,9 @@ export class SettingsStore {
         musicVolume: boundedNumber(parsed.musicVolume, DEFAULT_SETTINGS.musicVolume, 0, 1),
         sfxVolume: boundedNumber(parsed.sfxVolume, DEFAULT_SETTINGS.sfxVolume, 0, 1),
         cameraSensitivity: boundedNumber(parsed.cameraSensitivity, DEFAULT_SETTINGS.cameraSensitivity, 0.25, 2),
+        cameraMode: parsed.cameraMode === 'first' ? 'first' : 'third',
+        voiceVolume: boundedNumber(parsed.voiceVolume, DEFAULT_SETTINGS.voiceVolume, 0, 1),
+        headMotion: typeof parsed.headMotion === 'boolean' ? parsed.headMotion : true,
       };
       return cachedSettings;
     } catch {

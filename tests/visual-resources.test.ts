@@ -8,7 +8,7 @@ import { getSurfaceTextures, projectSurfaceUVs, tileNoise, type SurfaceKind } fr
 
 test('PBR maps share a bounded allocation, tile, and keep color separate from linear surface data', () => {
   let bytes = 0;
-  for (const kind of ['ground', 'concrete', 'steel', 'fabric', 'water'] as SurfaceKind[]) {
+  for (const kind of ['ground', 'concrete', 'steel', 'fabric', 'water', 'masonry', 'wood'] as SurfaceKind[]) {
     const maps = getSurfaceTextures(kind);
     assert.equal(maps, getSurfaceTextures(kind));
     assert.equal(maps.color.colorSpace, THREE.SRGBColorSpace);
@@ -23,7 +23,7 @@ test('PBR maps share a bounded allocation, tile, and keep color separate from li
       assert.ok(Number(roughness[i + 1]) >= 40 && Number(roughness[i + 1]) <= 250);
     }
   }
-  assert.ok(bytes <= 4 * 1024 * 1024, `${bytes} source texture bytes`);
+  assert.ok(bytes <= 6 * 1024 * 1024, `${bytes} source texture bytes`);
   for (const [u, v] of [[0, 0.3], [-0.1, 0.92], [1.37, -0.8]]) {
     assert.ok(Math.abs(tileNoise(u, v, 16) - tileNoise(u + 1, v - 1, 16)) < 1e-12);
   }

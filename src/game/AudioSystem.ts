@@ -1,9 +1,14 @@
 import * as THREE from 'three';
+import { VoiceImitation } from './VoiceImitation';
 import type { EnergySystemName } from './EnergySystem';
 
 const SETTINGS_KEY = 'beacon-eclipse.settings.v1';
 
 export class AudioSystem {
+  private voice: VoiceImitation | null = null;
+  private voiceGain: GainNode | null = null;
+  private voiceVolume = 0.65;
+  private pendingVoice: { speaker: string; text: string; duration: number } | null = null;
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
   private rainGain: GainNode | null = null;
@@ -64,6 +69,27 @@ export class AudioSystem {
   setPaused(paused: boolean): void {
     this.paused = paused;
     this.applyMasterLevel(0.12);
+    this.applyVoiceLevel();
+  }
+
+  setVoiceVolume(volume: number): void {
+    this.voiceVolume = THREE.MathUtils.clamp(volume, 0, 1);
+    this.applyVoiceLevel();
+  }
+
+  startLine(speaker: string, text: string, duration: number): void {
+    this.pendingVoice = this.voice ? null : { speaker, text, duration };
+    this.voice?.startLine(speaker, text, duration);
+  }
+  updateLine(dt: number): void {
+    if (this.pendingVoice) this.pendingVoice.duration -= dt;
+    this.voice?.updateLine(dt);
+  }
+  stopLine(): void { this.pendingVoice = null; this.voice?.stopLine(); }
+
+  private applyVoiceLevel(): void {
+    if (this.context && this.voiceGain) this.voiceGain.gain.setTargetAtTime(
+      this.paused || this.fadingOut ? 0 : this.voiceVolume * 0.65, this.context.currentTime, 0.015);
   }
 
   setPlayerState(position: THREE.Vector3, moving: boolean): void {
@@ -88,6 +114,7 @@ export class AudioSystem {
     const master = this.master;
     if (!context || !master) return;
     this.fadingOut = true;
+    this.applyVoiceLevel();
     const now = context.currentTime;
     master.gain.cancelScheduledValues(now);
     master.gain.setValueAtTime(master.gain.value, now);
@@ -138,7 +165,9 @@ export class AudioSystem {
     const schoolBlend = THREE.MathUtils.clamp((-this.playerPosition.z - 54) / 12, 0, 1);
     const lighthouseBlend = Math.abs(this.playerPosition.x) < 4.1
       ? THREE.MathUtils.smoothstep(this.playerPosition.z, 17, 21) : 0;
-    const roomBlend = Math.max(schoolBlend, lighthouseBlend * 0.85);
+    const surveyBlend = this.playerPosition.x > -22 && this.playerPosition.x < -16 && this.playerPosition.z < 34
+      ? THREE.MathUtils.smoothstep(this.playerPosition.z, 27.8, 29.6) : 0;
+    const roomBlend = Math.max(schoolBlend, lighthouseBlend * 0.85, surveyBlend * 0.8);
     const outdoorBlend = 1 - roomBlend * 0.78;
     this.setGainTarget(this.rainGain, 0.17 * outdoorBlend, now, 0.35);
     this.setGainTarget(this.windGain, 0.055 * outdoorBlend, now, 0.7);
@@ -194,6 +223,15 @@ export class AudioSystem {
     this.master.gain.value = 0;
     this.master.connect(context.destination);
     this.noiseBuffer = this.createNoiseBuffer(context, 5);
+    this.voiceGain = context.createGain();
+    this.voiceGain.connect(context.destination);
+    this.voice = new VoiceImitation(context, this.voiceGain, this.noiseBuffer);
+    if (this.pendingVoice) {
+      const { speaker, text, duration } = this.pendingVoice;
+      this.voice.startLine(speaker, text, duration);
+      this.pendingVoice = null;
+    }
+    this.applyVoiceLevel();
 
     this.rainGain = this.createNoiseLoop(context, 'highpass', 1250, 0.8);
     this.windGain = this.createNoiseLoop(context, 'bandpass', 340, 0.65);

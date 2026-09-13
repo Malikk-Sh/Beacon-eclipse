@@ -1,284 +1,203 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { surfaceMaterial } from '../world/SurfaceTextures';
+import { cable, consolidate, labelMaterial, part, roundedBox } from '../world/DetailGeometry';
 
-function softBox(x: number, y: number, z: number): THREE.BufferGeometry {
-  return new RoundedBoxGeometry(x, y, z, 2, Math.min(0.055, x * 0.2, y * 0.2, z * 0.2));
-}
+type Leg = { hip: THREE.Group; knee: THREE.Group; foot: THREE.Group };
+type Arm = { shoulder: THREE.Group; elbow: THREE.Group };
 
-function garment(top: number, bottom: number, height: number): THREE.BufferGeometry {
-  const geometry = new THREE.CylinderGeometry(top, bottom, height, 20, 10);
-  const position = geometry.getAttribute('position');
-  for (let i = 0; i < position.count; i++) {
-    const t = (position.getY(i) + height / 2) / height;
-    const angle = Math.atan2(position.getZ(i), position.getX(i));
-    const fold = 1 + Math.sin(t * Math.PI) * (Math.sin(angle * 6 + t * 13) * 0.038 + Math.sin(t * 28) * 0.018);
-    position.setX(i, position.getX(i) * fold);
-    position.setZ(i, position.getZ(i) * fold);
-  }
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
+/** Authored in metres: articulated human proportions, layered clothing and equipment. */
 export class LevVisual {
   readonly root = new THREE.Group();
-
-  private readonly leftArm = new THREE.Group();
-  private readonly rightArm = new THREE.Group();
-  private readonly leftLeg = new THREE.Group();
-  private readonly rightLeg = new THREE.Group();
-  private readonly torsoRoot = new THREE.Group();
-  private gait = 0;
-  private motionBlend = 0;
+  private readonly torso = new THREE.Group();
+  private readonly head = new THREE.Group();
+  private readonly equipment = new THREE.Group();
+  private readonly eyes = new THREE.Group();
+  private readonly legs: Leg[] = [];
+  private readonly arms: Arm[] = [];
   private elapsed = 0;
+  private gait = 0;
+  private blend = 0;
 
   constructor() {
-    const jacket = surfaceMaterial('fabric', 0x39464c);
-    const jacketPanel = surfaceMaterial('fabric', 0x4a5860);
-    const leather = surfaceMaterial('fabric', 0x6e5541);
-    const webbing = surfaceMaterial('fabric', 0x574e41);
-    const metal = new THREE.MeshStandardMaterial({ color: 0x454b4d, roughness: 0.5, metalness: 0.72 });
-    const glove = new THREE.MeshStandardMaterial({ color: 0x11171b, roughness: 0.9, metalness: 0.03 });
-    const boot = new THREE.MeshStandardMaterial({ color: 0x15191b, roughness: 0.88, metalness: 0.08 });
-    const hair = new THREE.MeshStandardMaterial({ color: 0x171414, roughness: 0.95, metalness: 0 });
-    const skin = new THREE.MeshStandardMaterial({ color: 0x7f665b, roughness: 0.88, metalness: 0 });
-    const fadedMark = new THREE.LineBasicMaterial({ color: 0x7e7769, transparent: true, opacity: 0.72 });
+    this.root.name = 'lev-detailed-rig';
+    const nylon = surfaceMaterial('fabric', 0x3d4c50);
+    const panels = surfaceMaterial('fabric', 0x526061);
+    const trousers = surfaceMaterial('fabric', 0x323c3e);
+    const seams = surfaceMaterial('fabric', 0x718080);
+    const leather = surfaceMaterial('fabric', 0x715039);
+    const straps = surfaceMaterial('fabric', 0x4c3e31);
+    const metal = surfaceMaterial('steel', 0x819196, 0.72);
+    const black = new THREE.MeshStandardMaterial({ color: 0x172020, roughness: 0.73, metalness: 0.15 });
+    const skin = new THREE.MeshStandardMaterial({ color: 0xad8170, roughness: 0.82 });
+    const hair = new THREE.MeshStandardMaterial({ color: 0x282321, roughness: 0.94 });
+    const sclera = new THREE.MeshStandardMaterial({ color: 0x959a90, roughness: 0.65 });
+    const iris = new THREE.MeshStandardMaterial({ color: 0x243a36, roughness: 0.3 });
+    const optic = new THREE.MeshStandardMaterial({ color: 0x8bbfc8, emissive: 0x3d8298, emissiveIntensity: 0.6, roughness: 0.35 });
 
-    this.buildTorso(jacket, jacketPanel, leather, webbing, metal);
-    this.buildHead(skin, hair, jacketPanel);
-    this.buildArm(this.leftArm, -0.49, jacket, jacketPanel, glove, metal, -1);
-    this.buildArm(this.rightArm, 0.49, jacket, jacketPanel, glove, metal, 1);
-    this.buildLeg(this.leftLeg, -0.21, jacket, jacketPanel, boot);
-    this.buildLeg(this.rightLeg, 0.21, jacket, jacketPanel, boot);
-    this.buildBackGear(leather, webbing, metal, fadedMark);
+    this.root.add(this.torso);
+    this.torso.add(this.head, this.equipment);
+    this.head.name = 'lev-head';
+    this.equipment.name = 'lev-backpack';
+    part(this.torso, this.cloth(0.245, 0.205, 0.52, 24), nylon, 0, 1.255, 0, 1, 1, 0.68);
+    part(this.torso, roundedBox(0.56, 0.17, 0.29, 0.065), panels, 0, 1.46, 0);
+    part(this.torso, this.cloth(0.23, 0.255, 0.18, 24), nylon, 0, 0.96, 0, 1, 1, 0.69);
+    part(this.torso, roundedBox(0.405, 0.15, 0.29), trousers, 0, 0.895, 0);
+    const collar = part(this.torso, new THREE.TorusGeometry(0.135, 0.053, 12, 36, Math.PI * 1.6), panels, 0, 1.55, 0.015);
+    collar.rotation.set(Math.PI / 2, 0, -Math.PI * 0.3);
+    part(this.torso, new THREE.SphereGeometry(0.175, 24, 16, 0, Math.PI * 2, 0.6, 1.8), nylon, 0, 1.485, 0.09, 1, 0.65, 0.7);
+    for (const side of [-1, 1]) {
+      part(this.torso, roundedBox(0.132, 0.145, 0.029, 0.012), panels, side * 0.128, 1.3, -0.165);
+      part(this.torso, roundedBox(0.14, 0.025, 0.03, 0.008), nylon, side * 0.128, 1.37, -0.175);
+      cable(this.torso, seams, [[side * 0.21, 1.05, -0.08], [side * 0.215, 1.22, -0.14], [side * 0.25, 1.47, -0.10]], 0.0018);
+      const strap = part(this.torso, roundedBox(0.04, 0.52, 0.023, 0.008), leather, side * 0.18, 1.275, -0.177);
+      strap.rotation.z = side * -0.085;
+      part(this.torso, roundedBox(0.057, 0.061, 0.025, 0.005), metal, side * 0.17, 1.18, -0.194);
+      part(this.torso, roundedBox(0.035, 0.043, 0.028, 0.003), straps, side * 0.17, 1.18, -0.201);
+    }
+    // Zipper teeth, storm flap, pull tab and a stitched service patch.
+    part(this.torso, roundedBox(0.027, 0.49, 0.027, 0.004), black, 0, 1.27, -0.178);
+    for (let i = 0; i < 27; i++) part(this.torso, new THREE.BoxGeometry(0.024, 0.003, 0.004), metal, 0, 1.04 + i * 0.017, -0.194);
+    part(this.torso, roundedBox(0.012, 0.035, 0.009), metal, 0.01, 1.46, -0.202);
+    part(this.torso, new THREE.PlaneGeometry(0.11, 0.036), labelMaterial('ARDEN', 'FIELD SERVICE'), -0.135, 1.31, -0.183).rotation.y = Math.PI;
+    part(this.torso, roundedBox(0.445, 0.044, 0.30), straps, 0, 0.955, 0);
+    part(this.torso, roundedBox(0.062, 0.043, 0.034, 0.005), metal, 0, 0.958, -0.163);
+    for (const side of [-1, 1]) {
+      part(this.torso, roundedBox(0.10, 0.15, 0.075, 0.013), leather, side * 0.21, 0.887, -0.08);
+      part(this.torso, roundedBox(0.10, 0.035, 0.08, 0.011), straps, side * 0.21, 0.948, -0.084);
+    }
 
-    this.root.add(this.torsoRoot, this.leftArm, this.rightArm, this.leftLeg, this.rightLeg);
-    this.root.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      object.castShadow = true;
-      object.receiveShadow = true;
-    });
+    // Facial planes, ears, eyelids and a short irregular hair silhouette.
+    part(this.head, new THREE.CylinderGeometry(0.065, 0.079, 0.13, 20), skin, 0, 1.58, 0);
+    part(this.head, new THREE.SphereGeometry(1, 36, 24), skin, 0, 1.709, -0.012, 0.112, 0.151, 0.112);
+    part(this.head, new THREE.SphereGeometry(1, 24, 16), skin, 0, 1.65, -0.026, 0.085, 0.078, 0.085);
+    part(this.head, new THREE.SphereGeometry(1, 18, 12), skin, 0, 1.711, -0.121, 0.020, 0.043, 0.026);
+    part(this.head, new THREE.SphereGeometry(1, 16, 10), skin, 0, 1.689, -0.142, 0.023, 0.017, 0.015);
+    const lips = new THREE.MeshStandardMaterial({ color: 0x785e54, roughness: 0.9 });
+    part(this.head, new THREE.SphereGeometry(1, 18, 10), lips, 0, 1.665, -0.117, 0.036, 0.006, 0.006);
+    this.head.add(this.eyes);
+    for (const side of [-1, 1]) {
+      part(this.head, new THREE.SphereGeometry(1, 18, 12), skin, side * 0.111, 1.71, 0.001, 0.022, 0.036, 0.014);
+      part(this.head, new THREE.SphereGeometry(1, 20, 12), skin, side * 0.049, 1.756, -0.096, 0.044, 0.019, 0.025);
+      part(this.eyes, new THREE.SphereGeometry(1, 20, 12), sclera, side * 0.044, 1.744, -0.108, 0.023, 0.009, 0.012);
+      part(this.eyes, new THREE.SphereGeometry(0.0078, 16, 10), iris, side * 0.044, 1.744, -0.12);
+      part(this.eyes, new THREE.SphereGeometry(0.0035, 12, 8), black, side * 0.044, 1.744, -0.126);
+      cable(this.head, hair, [[side * 0.022, 1.767, -0.11], [side * 0.049, 1.773, -0.102], [side * 0.077, 1.76, -0.09]], 0.004, 8);
+    }
+    part(this.head, new THREE.SphereGeometry(1, 36, 24, 0, Math.PI * 2, 0, 1.66), hair, 0, 1.745, 0.002, 0.117, 0.121, 0.114);
+    for (let i = 0; i < 52; i++) {
+      const angle = i * 2.39996;
+      const theta = 0.15 + (i % 13) / 12 * 1.3;
+      const x = Math.cos(angle) * Math.sin(theta) * 0.117;
+      const z = Math.sin(angle) * Math.sin(theta) * 0.113;
+      const y = 1.745 + Math.cos(theta) * 0.117;
+      cable(this.head, hair, [[x * 0.92, y, z], [x, y + 0.014, z + 0.012], [x * 1.05, y + 0.004, z + 0.026]], 0.0045, 4);
+    }
+    for (let i = 0; i < 26; i++) {
+      const angle = -1.2 + i / 25 * 2.4;
+      part(this.head, new THREE.SphereGeometry(0.0028, 5, 4), hair,
+        Math.sin(angle) * 0.073, 1.633 + (i % 3) * 0.007, -0.043 - Math.cos(angle) * 0.067);
+    }
+
+    for (const side of [-1, 1]) {
+      const hip = new THREE.Group(); hip.position.set(side * 0.12, 0.87, 0);
+      const knee = new THREE.Group(); knee.position.y = -0.38;
+      const foot = new THREE.Group(); foot.position.y = -0.39;
+      hip.add(knee); knee.add(foot); this.root.add(hip);
+      this.legs.push({ hip, knee, foot });
+      part(hip, this.cloth(0.105, 0.079, 0.38, 24), trousers, 0, -0.19, 0, 1, 1, 0.95);
+      part(hip, roundedBox(0.073, 0.13, 0.04, 0.014), nylon, side * 0.094, -0.16, 0);
+      part(knee, this.cloth(0.079, 0.057, 0.36, 24), trousers, 0, -0.165, 0);
+      part(knee, roundedBox(0.114, 0.103, 0.025, 0.03), panels, 0, -0.014, -0.066);
+      cable(knee, seams, [[side * 0.06, 0, 0], [side * 0.065, -0.14, 0.012], [side * 0.053, -0.31, 0]], 0.0019);
+      part(foot, roundedBox(0.143, 0.136, 0.245, 0.038), black, 0, -0.018, -0.048);
+      part(foot, roundedBox(0.148, 0.028, 0.255, 0.009), black, 0, -0.087, -0.051);
+      part(foot, roundedBox(0.13, 0.058, 0.105, 0.018), leather, 0, 0.037, 0.008);
+      for (let i = 0; i < 4; i++) {
+        cable(foot, seams, [[-0.043, 0.045, -0.014 - i * 0.024], [0, 0.052, -0.026 - i * 0.024], [0.043, 0.045, -0.014 - i * 0.024]], 0.0023, 4);
+        part(foot, new THREE.BoxGeometry(0.15, 0.012, 0.008), metal, 0, -0.084, -0.14 + i * 0.052);
+      }
+      const shoulder = new THREE.Group(); shoulder.position.set(side * 0.277, 1.455, 0);
+      const elbow = new THREE.Group(); elbow.position.set(side * 0.028, -0.285, 0);
+      shoulder.add(elbow); this.torso.add(shoulder); this.arms.push({ shoulder, elbow });
+      part(shoulder, this.cloth(0.082, 0.069, 0.285, 24), nylon, side * 0.01, -0.145, 0);
+      part(shoulder, new THREE.SphereGeometry(0.081, 24, 16), panels, side * 0.003, -0.025, 0, 1, 0.9, 1.1);
+      part(elbow, this.cloth(0.068, 0.043, 0.25, 24), side === 1 ? metal : nylon, side * 0.008, -0.119, 0);
+      if (side === 1) {
+        for (let i = 0; i < 7; i++) part(elbow, new THREE.TorusGeometry(0.054 - i * 0.0017, 0.005, 6, 20), black, 0.008, -0.04 - i * 0.028, 0).rotation.x = Math.PI / 2;
+        part(elbow, roundedBox(0.054, 0.08, 0.018), black, 0.007, -0.14, -0.052);
+        part(elbow, roundedBox(0.028, 0.008, 0.005), optic, 0.007, -0.136, -0.064);
+      }
+      part(elbow, roundedBox(0.104, 0.036, 0.105, 0.012), straps, 0.01, -0.236, 0);
+      part(elbow, roundedBox(0.075, 0.09, 0.048, 0.018), black, 0.012, -0.299, -0.002);
+      for (let i = 0; i < 4; i++) part(elbow, new THREE.CapsuleGeometry(0.0085, 0.036 - Math.abs(i - 1.5) * 0.007, 5, 10), black,
+        -0.014 + i * 0.017, -0.353, -0.006);
+      part(elbow, new THREE.CapsuleGeometry(0.011, 0.025, 5, 10), black, side * -0.027, -0.302, -0.026).rotation.z = side * 0.5;
+      cable(shoulder, seams, [[side * 0.07, 0, 0], [side * 0.082, -0.13, 0.02], [side * 0.057, -0.27, 0]], 0.002);
+    }
+
+    part(this.equipment, roundedBox(0.36, 0.45, 0.18, 0.055), leather, 0, 1.255, 0.239);
+    part(this.equipment, roundedBox(0.31, 0.1, 0.185, 0.033), nylon, 0, 1.464, 0.244);
+    part(this.equipment, roundedBox(0.30, 0.18, 0.055, 0.026), straps, 0, 1.12, 0.344);
+    for (const x of [-0.133, 0.133]) {
+      part(this.equipment, roundedBox(0.029, 0.4, 0.018, 0.005), straps, x, 1.245, 0.339);
+      part(this.equipment, roundedBox(0.04, 0.036, 0.024, 0.005), metal, x, 1.17, 0.358);
+    }
+    part(this.equipment, new THREE.PlaneGeometry(0.235, 0.078), labelMaterial('ARDEN', 'ENGINEERING · 07'), 0, 1.355, 0.335);
+    cable(this.equipment, seams, [[0, 1.47, 0.339], [-0.045, 1.397, 0.341], [0.045, 1.397, 0.341], [0, 1.47, 0.339]], 0.003, 8);
+    part(this.equipment, roundedBox(0.10, 0.18, 0.06, 0.015), black, 0.235, 1.38, 0.235);
+    cable(this.equipment, black, [[0.257, 1.45, 0.23], [0.259, 1.6, 0.233], [0.23, 1.68, 0.245]], 0.003);
+    cable(this.torso, black, [[0.25, 1.48, 0.18], [0.22, 1.51, -0.03], [0.12, 1.40, -0.187]], 0.007);
+    consolidate(this.root);
   }
+
+  setFirstPerson(first: boolean): void { this.head.visible = !first; this.equipment.visible = !first; }
 
   update(dt: number, moving: boolean, grounded = true, verticalSpeed = 0, landing = 0): void {
     this.elapsed += dt;
-    const target = moving && grounded ? 1 : 0;
-    this.motionBlend = THREE.MathUtils.lerp(this.motionBlend, target, 1 - Math.exp(-dt * 8));
-    this.gait += dt * THREE.MathUtils.lerp(2.4, 8.2, this.motionBlend);
-
+    this.blend = THREE.MathUtils.damp(this.blend, moving && grounded ? 1 : 0, 9, dt);
+    this.gait += dt * 9.2 * this.blend;
     const stride = Math.sin(this.gait);
-    const counterStride = Math.sin(this.gait + Math.PI);
-    const doubleStep = Math.sin(this.gait * 2);
-    const idleWeight = 1 - this.motionBlend;
-    const breath = Math.sin(this.elapsed * 1.35);
-    const idleShoulder = Math.sin(this.elapsed * 0.82 + 0.6);
-    const legSwing = 0.46 * this.motionBlend;
-    const armSwing = 0.31 * this.motionBlend;
-    const verticalStep = Math.abs(Math.sin(this.gait)) * 0.028 * this.motionBlend;
+    this.torso.rotation.set(-0.045 * this.blend - landing * 0.08, stride * 0.035 * this.blend,
+      stride * 0.013 * this.blend + Math.sin(this.elapsed * 1.3) * 0.004);
+    this.torso.position.y = Math.sin(this.elapsed * 1.4) * 0.003;
+    this.root.position.y = -landing * 0.065;
+    this.head.rotation.y = Math.sin(this.elapsed * 0.45) * 0.035 * (1 - this.blend);
+    this.arms.forEach((arm, i) => {
+      arm.shoulder.rotation.x = Math.sin(this.gait + (i ? 0 : Math.PI)) * 0.30 * this.blend - 0.04;
+      arm.shoulder.rotation.z = (i ? 1 : -1) * 0.05;
+      arm.elbow.rotation.x = -0.12 - this.blend * 0.2;
+      if (!grounded) { arm.shoulder.rotation.x = -0.35; arm.elbow.rotation.x = -0.45; }
+    });
+    this.legs.forEach((leg, i) => {
+      const phase = this.gait + i * Math.PI;
+      const lift = Math.max(0, Math.cos(phase)) * 0.08 * this.blend + landing * 0.065;
+      const z = Math.sin(phase) * 0.165 * this.blend;
+      const down = 0.754 - lift;
+      const d = Math.min(0.769, Math.hypot(down, z));
+      const bend = Math.PI - Math.acos(THREE.MathUtils.clamp((0.38 ** 2 + 0.39 ** 2 - d * d) / (2 * 0.38 * 0.39), -1, 1));
+      leg.hip.rotation.x = Math.atan2(-z, down) + bend * 0.51;
+      leg.knee.rotation.x = -bend;
+      leg.foot.rotation.x = -(leg.hip.rotation.x + leg.knee.rotation.x);
+      if (!grounded) {
+        leg.hip.rotation.x = (i ? 0.15 : -0.15) - Math.max(0, verticalSpeed) * 0.055;
+        leg.knee.rotation.x = -0.35;
+        leg.foot.rotation.x = 0.1;
+      }
+    });
+  }
 
-    this.leftArm.rotation.x = counterStride * armSwing + idleShoulder * 0.018 * idleWeight;
-    this.rightArm.rotation.x = stride * armSwing - idleShoulder * 0.018 * idleWeight;
-    this.leftArm.rotation.z = -0.035 + doubleStep * 0.016 * this.motionBlend - idleShoulder * 0.01 * idleWeight;
-    this.rightArm.rotation.z = 0.035 - doubleStep * 0.016 * this.motionBlend + idleShoulder * 0.01 * idleWeight;
-
-    this.leftLeg.rotation.x = stride * legSwing;
-    this.rightLeg.rotation.x = counterStride * legSwing;
-    this.leftLeg.rotation.z = -0.012 - doubleStep * 0.008 * this.motionBlend;
-    this.rightLeg.rotation.z = 0.012 + doubleStep * 0.008 * this.motionBlend;
-
-    this.torsoRoot.rotation.x = -0.045 * this.motionBlend + doubleStep * 0.008 * this.motionBlend;
-    this.torsoRoot.rotation.y = stride * 0.05 * this.motionBlend;
-    this.torsoRoot.rotation.z = stride * 0.018 * this.motionBlend + breath * 0.006 * idleWeight;
-    this.torsoRoot.position.x = -stride * 0.012 * this.motionBlend + idleShoulder * 0.003 * idleWeight;
-    this.torsoRoot.position.y = breath * 0.008 * idleWeight;
-    this.torsoRoot.scale.set(1, 1 + breath * 0.004 * idleWeight, 1);
-    this.root.position.y = verticalStep;
-    if (!grounded) {
-      const lift = THREE.MathUtils.clamp(verticalSpeed / 7.2, -1, 1);
-      this.leftArm.rotation.x = -0.45;
-      this.rightArm.rotation.x = -0.35;
-      this.leftArm.rotation.z = -0.22;
-      this.rightArm.rotation.z = 0.22;
-      this.leftLeg.rotation.x = -0.3 * Math.max(0, lift);
-      this.rightLeg.rotation.x = 0.24 * Math.max(0, lift);
-      this.torsoRoot.rotation.x = -0.08;
+  private cloth(top: number, bottom: number, height: number, segments: number): THREE.BufferGeometry {
+    const geometry = new THREE.CylinderGeometry(top, bottom, height, segments, 16);
+    const points = geometry.getAttribute('position');
+    for (let i = 0; i < points.count; i++) {
+      const t = (points.getY(i) + height / 2) / height;
+      const angle = Math.atan2(points.getZ(i), points.getX(i));
+      const envelope = Math.sin(t * Math.PI);
+      const fold = 1 + envelope * (Math.sin(t * 30 + angle * 3) * 0.036 + Math.sin(angle * 9 + t * 11) * 0.022);
+      points.setX(i, points.getX(i) * fold);
+      points.setZ(i, points.getZ(i) * fold);
     }
-    this.root.position.y -= landing * 0.12;
-    this.torsoRoot.rotation.x -= landing * 0.12;
-  }
-
-  private buildTorso(
-    jacket: THREE.Material,
-    jacketPanel: THREE.Material,
-    leather: THREE.Material,
-    webbing: THREE.Material,
-    metal: THREE.Material,
-  ): void {
-    const torso = new THREE.Mesh(garment(0.43, 0.36, 0.98), jacket);
-    torso.position.y = 1.38;
-    torso.scale.z = 0.72;
-    this.torsoRoot.add(torso);
-
-    const shoulder = new THREE.Mesh(softBox(0.98, 0.18, 0.46), jacketPanel);
-    shoulder.position.set(0, 1.72, 0.02);
-    this.torsoRoot.add(shoulder);
-
-    const chestPanel = new THREE.Mesh(softBox(0.64, 0.42, 0.09), jacketPanel);
-    chestPanel.position.set(0, 1.43, -0.34);
-    chestPanel.rotation.x = -0.05;
-    this.torsoRoot.add(chestPanel);
-
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.105, 6, 12, Math.PI * 1.45), jacketPanel);
-    collar.position.set(0, 1.82, 0.01);
-    collar.rotation.x = Math.PI / 2;
-    collar.rotation.z = -Math.PI * 0.72;
-    this.torsoRoot.add(collar);
-
-    const pelvis = new THREE.Mesh(softBox(0.68, 0.34, 0.48), jacket);
-    pelvis.position.set(0, 0.82, 0.01);
-    this.torsoRoot.add(pelvis);
-
-    const belt = new THREE.Mesh(softBox(0.78, 0.12, 0.52), webbing);
-    belt.position.set(0, 0.92, 0.01);
-    this.torsoRoot.add(belt);
-
-    const pouchGeometry = softBox(0.17, 0.24, 0.13);
-    const pouchPositions = [
-      [-0.3, 0.78, 0.28], [-0.1, 0.76, 0.3], [0.13, 0.76, 0.3], [0.32, 0.79, 0.25],
-    ] as const;
-    for (const [x, y, z] of pouchPositions) {
-      const pouch = new THREE.Mesh(pouchGeometry, leather);
-      pouch.position.set(x, y, z);
-      this.torsoRoot.add(pouch);
-    }
-
-    const buckle = new THREE.Mesh(softBox(0.13, 0.1, 0.05), metal);
-    buckle.position.set(0, 0.91, -0.29);
-    this.torsoRoot.add(buckle);
-  }
-
-  private buildHead(skin: THREE.Material, hair: THREE.Material, hood: THREE.Material): void {
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.16, 0.18, 8), skin);
-    neck.position.set(0, 1.88, 0);
-    this.torsoRoot.add(neck);
-
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.245, 24, 16), skin);
-    head.position.set(0, 2.09, -0.015);
-    head.scale.set(0.9, 1.05, 0.92);
-    this.torsoRoot.add(head);
-
-    const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.255, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.58), hair);
-    hairCap.position.set(0, 2.16, 0.008);
-    hairCap.rotation.x = -0.08;
-    this.torsoRoot.add(hairCap);
-
-    const hoodBack = new THREE.Mesh(new THREE.SphereGeometry(0.33, 20, 14, 0, Math.PI * 2, 0.58, Math.PI * 0.58), hood);
-    hoodBack.position.set(0, 1.88, 0.11);
-    hoodBack.scale.set(1.05, 0.76, 0.7);
-    this.torsoRoot.add(hoodBack);
-  }
-
-  private buildArm(
-    pivot: THREE.Group,
-    x: number,
-    jacket: THREE.Material,
-    jacketPanel: THREE.Material,
-    glove: THREE.Material,
-    metal: THREE.Material,
-    side: number,
-  ): void {
-    pivot.position.set(x, 1.65, 0);
-
-    const shoulderPad = new THREE.Mesh(softBox(0.26, 0.22, 0.42), jacketPanel);
-    shoulderPad.position.set(side * 0.02, -0.03, 0.02);
-    pivot.add(shoulderPad);
-
-    const upper = new THREE.Mesh(garment(0.12, 0.135, 0.55), jacket);
-    upper.position.set(side * 0.02, -0.33, 0);
-    upper.rotation.z = side * 0.05;
-    pivot.add(upper);
-
-    const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.13, 7, 5), jacketPanel);
-    elbow.position.set(side * 0.04, -0.61, 0.01);
-    pivot.add(elbow);
-
-    const forearm = new THREE.Mesh(garment(0.095, 0.115, 0.5), jacket);
-    forearm.position.set(side * 0.07, -0.84, -0.005);
-    forearm.rotation.z = side * 0.06;
-    pivot.add(forearm);
-
-    const wristModule = new THREE.Mesh(softBox(0.18, 0.12, 0.17), metal);
-    wristModule.position.set(side * 0.09, -1.04, 0.01);
-    pivot.add(wristModule);
-
-    const hand = new THREE.Mesh(softBox(0.16, 0.2, 0.14), glove);
-    hand.position.set(side * 0.1, -1.17, -0.005);
-    pivot.add(hand);
-  }
-
-  private buildLeg(
-    pivot: THREE.Group,
-    x: number,
-    trouser: THREE.Material,
-    panel: THREE.Material,
-    boot: THREE.Material,
-  ): void {
-    pivot.position.set(x, 0.82, 0);
-
-    const thigh = new THREE.Mesh(garment(0.15, 0.17, 0.64), trouser);
-    thigh.position.y = -0.32;
-    thigh.scale.z = 0.85;
-    pivot.add(thigh);
-
-    const knee = new THREE.Mesh(softBox(0.26, 0.18, 0.23), panel);
-    knee.position.set(0, -0.65, -0.08);
-    pivot.add(knee);
-
-    const shin = new THREE.Mesh(garment(0.105, 0.13, 0.57), trouser);
-    shin.position.y = -0.95;
-    shin.scale.z = 0.82;
-    pivot.add(shin);
-
-    const bootMesh = new THREE.Mesh(softBox(0.27, 0.22, 0.42), boot);
-    bootMesh.position.set(0, -1.23, -0.08);
-    pivot.add(bootMesh);
-  }
-
-  private buildBackGear(
-    leather: THREE.Material,
-    webbing: THREE.Material,
-    metal: THREE.Material,
-    markMaterial: THREE.LineBasicMaterial,
-  ): void {
-    const pack = new THREE.Mesh(softBox(0.62, 0.78, 0.24), leather);
-    pack.position.set(0, 1.36, 0.42);
-    pack.rotation.x = -0.04;
-    this.torsoRoot.add(pack);
-
-    const radio = new THREE.Mesh(softBox(0.24, 0.34, 0.16), metal);
-    radio.position.set(0.34, 1.46, 0.4);
-    this.torsoRoot.add(radio);
-
-    const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.025, 0.48, 6), metal);
-    antenna.position.set(0.39, 1.86, 0.42);
-    antenna.rotation.z = -0.08;
-    this.torsoRoot.add(antenna);
-
-    for (const x of [-0.27, 0.27]) {
-      const strap = new THREE.Mesh(softBox(0.085, 1.0, 0.05), webbing);
-      strap.position.set(x, 1.38, 0.29);
-      strap.rotation.z = x < 0 ? -0.12 : 0.12;
-      this.torsoRoot.add(strap);
-    }
-
-    const emblemGeometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(0, 0.18, 0), new THREE.Vector3(-0.18, -0.14, 0),
-      new THREE.Vector3(-0.18, -0.14, 0), new THREE.Vector3(0.18, -0.14, 0),
-      new THREE.Vector3(0.18, -0.14, 0), new THREE.Vector3(0, 0.18, 0),
-      new THREE.Vector3(-0.06, -0.02, 0), new THREE.Vector3(0.06, -0.02, 0),
-    ]);
-    const emblem = new THREE.LineSegments(emblemGeometry, markMaterial);
-    emblem.position.set(0, 1.54, 0.548);
-    this.torsoRoot.add(emblem);
+    geometry.computeVertexNormals();
+    return geometry;
   }
 }

@@ -6,8 +6,8 @@ import { LevVisual } from './LevVisual';
 
 export const PLAYER_SCENE_NAME = 'lev-player';
 
-const PLAYER_VISUAL_SCALE = 0.64;
-const PLAYER_VISUAL_GROUND_OFFSET = 0.34;
+const PLAYER_VISUAL_SCALE = 1;
+const PLAYER_VISUAL_GROUND_OFFSET = 0;
 
 export class PlayerController {
   readonly object = new THREE.Group();
@@ -19,6 +19,7 @@ export class PlayerController {
   private readonly yAxis = new THREE.Vector3(0, 1, 0);
   private readonly speed = 5.1;
   private moving = false;
+  private firstPerson = false;
   private verticalSpeed = 0;
   private onGround = false;
   private landingWeight = 0;
@@ -43,6 +44,7 @@ export class PlayerController {
   update(input: InputController, cameraYaw: number, dt: number) {
     this.desiredMove.set(input.movement.x, 0, -input.movement.y);
     this.moving = this.desiredMove.lengthSq() > 0.001;
+    if (this.firstPerson) this.object.rotation.y = cameraYaw;
     if (this.moving) {
       this.desiredMove.normalize().applyAxisAngle(this.yAxis, cameraYaw).multiplyScalar(this.speed * dt);
       const facing = Math.atan2(this.desiredMove.x, this.desiredMove.z) + Math.PI;
@@ -51,7 +53,7 @@ export class PlayerController {
         Math.cos(facing - this.object.rotation.y),
       );
       const turnBlend = 1 - Math.exp(-dt * 11);
-      this.object.rotation.y += facingDelta * turnBlend;
+      if (!this.firstPerson) this.object.rotation.y += facingDelta * turnBlend;
     }
     if (input.consumeJump() && this.onGround) {
       this.verticalSpeed = 7.2;
@@ -118,6 +120,9 @@ export class PlayerController {
     this.object.position.set(position.x, position.y - 1.05, position.z);
     audioSystem.setPlayerState(this.object.position, this.moving && this.onGround);
   }
+
+  setFirstPerson(first: boolean): void { this.firstPerson = first; this.visual.setFirstPerson(first); }
+  get isMoving(): boolean { return this.moving; }
 
   get position() {
     return this.object.position;

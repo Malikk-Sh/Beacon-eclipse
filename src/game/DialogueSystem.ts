@@ -1,5 +1,6 @@
 import { Hud } from '../ui/Hud';
 import { MEMORY_ECHO_EVENT, MemoryEchoCustomEvent } from './MemoryEchoEvent';
+import type { DialogueVoice } from './VoiceImitation';
 
 export interface DialogueLineStep {
   kind: 'line';
@@ -30,7 +31,7 @@ export class DialogueSystem {
   private elapsed = 0;
   private onComplete: (() => void) | null = null;
 
-  constructor(private readonly hud: Hud) {
+  constructor(private readonly hud: Hud, private readonly voice?: DialogueVoice) {
     window.addEventListener('keydown', (event) => {
       if (this.current?.kind !== 'choice') return;
       const index = Number(event.key) - 1;
@@ -50,6 +51,8 @@ export class DialogueSystem {
     return this.current !== null || this.queue.length > 0;
   }
 
+  get isChoosing(): boolean { return this.current?.kind === 'choice'; }
+
   play(steps: DialogueStep[], onComplete?: () => void) {
     this.queue = [...steps];
     this.current = null;
@@ -64,6 +67,7 @@ export class DialogueSystem {
     this.elapsed += dt;
 
     if (this.current.kind === 'line') {
+      this.voice?.updateLine(dt);
       if (this.elapsed >= (this.current.duration ?? 3)) this.advance();
       return;
     }
@@ -83,6 +87,7 @@ export class DialogueSystem {
   }
 
   stop() {
+    this.voice?.stopLine();
     this.queue = [];
     this.current = null;
     this.onComplete = null;
@@ -91,6 +96,7 @@ export class DialogueSystem {
   }
 
   private advance() {
+    this.voice?.stopLine();
     this.hud.clearDialogueChoices();
     this.current = this.queue.shift() ?? null;
     this.elapsed = 0;
@@ -106,6 +112,7 @@ export class DialogueSystem {
 
     if (this.current.kind === 'line') {
       this.hud.showDialogue(this.current.speaker, this.current.text);
+      this.voice?.startLine(this.current.speaker, this.current.text, this.current.duration ?? 3);
       return;
     }
 
