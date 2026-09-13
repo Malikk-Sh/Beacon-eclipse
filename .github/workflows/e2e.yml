@@ -8,6 +8,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: mobile-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   mobile-smoke:
     runs-on: ubuntu-latest
