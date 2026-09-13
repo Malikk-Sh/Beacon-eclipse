@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const iphone15 = devices['iPhone 15'];
-const pixel7 = devices['Pixel 7'];
+const iphone15Landscape = devices['iPhone 15 landscape'];
+const pixel7Landscape = devices['Pixel 7 landscape'];
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -31,22 +31,13 @@ export default defineConfig({
     {
       name: 'iphone-15-webkit',
       use: {
-        ...iphone15,
-        viewport: {
-          width: iphone15.viewport.height,
-          height: iphone15.viewport.width,
-        },
+        ...iphone15Landscape,
       },
     },
     {
       name: 'pixel-7-chromium',
       use: {
-        ...pixel7,
-        headless: process.env.CI ? false : undefined,
-        viewport: {
-          width: pixel7.viewport.height,
-          height: pixel7.viewport.width,
-        },
+        ...pixel7Landscape,
       },
     },
   ],
