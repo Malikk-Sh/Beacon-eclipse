@@ -1,23 +1,67 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const browserStackRun = process.env.BROWSERSTACK_RUN === '1';
+
+type CanvasDiagnostics = {
+  innerWidth: number;
+  innerHeight: number;
+  dpr: number;
+  cssWidth: number;
+  cssHeight: number;
+  bufferWidth: number;
+  bufferHeight: number;
+  rectWidth: number;
+  rectHeight: number;
+  hasWebGL2: boolean;
+};
+
+async function readCanvasDiagnostics(canvas: Locator): Promise<CanvasDiagnostics> {
+  return canvas.evaluate((element) => {
+    const canvasElement = element as HTMLCanvasElement;
+    const rect = canvasElement.getBoundingClientRect();
+    return {
+      innerWidth,
+      innerHeight,
+      dpr: devicePixelRatio,
+      cssWidth: canvasElement.clientWidth,
+      cssHeight: canvasElement.clientHeight,
+      bufferWidth: canvasElement.width,
+      bufferHeight: canvasElement.height,
+      rectWidth: rect.width,
+      rectHeight: rect.height,
+      hasWebGL2: Boolean(canvasElement.getContext('webgl2')),
+    };
+  });
+}
 
 async function waitForGame(page: Page) {
   const canvas = page.locator('#game canvas');
   await expect(canvas).toBeVisible();
-  await expect.poll(async () => canvas.evaluate((element) => {
-    const canvasElement = element as HTMLCanvasElement;
-    return canvasElement.width > 0
-      && canvasElement.height > 0
-      && canvasElement.clientWidth > 0
-      && canvasElement.clientHeight > 0;
-  })).toBe(true);
+
+  try {
+    await expect.poll(async () => {
+      const diagnostics = await readCanvasDiagnostics(canvas);
+      return diagnostics.bufferWidth > 0
+        && diagnostics.bufferHeight > 0
+        && diagnostics.cssWidth > 0
+        && diagnostics.cssHeight > 0;
+    }).toBe(true);
+  } catch (error) {
+    const diagnostics = await readCanvasDiagnostics(canvas);
+    console.log(`[mobile-e2e] canvas diagnostics: ${JSON.stringify(diagnostics)}`);
+    throw error;
+  }
+
   return canvas;
 }
 
 test('mobile WebGL smoke journey', async ({ page }) => {
   const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
 
   await page.goto('/?perf=1', { waitUntil: 'domcontentloaded' });
   let canvas = await waitForGame(page);
@@ -28,20 +72,12 @@ test('mobile WebGL smoke journey', async ({ page }) => {
     await expect(page.getByRole('button', { name: 'Пауза' })).toBeVisible();
     await expect(page.locator('#objective')).toContainText('НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ');
 
-    const dimensions = await canvas.evaluate((element) => {
-      const canvasElement = element as HTMLCanvasElement;
-      return {
-        cssWidth: canvasElement.clientWidth,
-        cssHeight: canvasElement.clientHeight,
-        bufferWidth: canvasElement.width,
-        bufferHeight: canvasElement.height,
-      };
-    });
-
+    const dimensions = await readCanvasDiagnostics(canvas);
     expect(dimensions.cssWidth).toBeGreaterThan(300);
     expect(dimensions.cssHeight).toBeGreaterThan(200);
     expect(dimensions.bufferWidth).toBeGreaterThan(0);
     expect(dimensions.bufferHeight).toBeGreaterThan(0);
+    expect(dimensions.hasWebGL2).toBe(true);
   });
 
   if (!browserStackRun) {
@@ -116,5 +152,8 @@ test('mobile WebGL smoke journey', async ({ page }) => {
     });
   }
 
+  if (consoleErrors.length > 0) {
+    console.log(`[mobile-e2e] browser console errors: ${JSON.stringify(consoleErrors)}`);
+  }
   expect(pageErrors).toEqual([]);
 });
