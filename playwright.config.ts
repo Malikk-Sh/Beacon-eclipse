@@ -42,6 +42,7 @@ export default defineConfig({
       name: 'pixel-7-chromium',
       use: {
         ...pixel7,
+        headless: process.env.CI ? false : undefined,
         viewport: {
           width: pixel7.viewport.height,
           height: pixel7.viewport.width,
