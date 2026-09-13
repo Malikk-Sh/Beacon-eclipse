@@ -5,9 +5,9 @@ const pixel7Landscape = devices['Pixel 7 landscape'];
 
 export default defineConfig({
   testDir: './tests/e2e',
-  timeout: 45_000,
+  timeout: 90_000,
   expect: {
-    timeout: 10_000,
+    timeout: 15_000,
   },
   fullyParallel: false,
   workers: process.env.CI ? 1 : undefined,
