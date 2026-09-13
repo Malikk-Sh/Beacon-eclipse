@@ -48,6 +48,12 @@ async function activateButton(locator: Locator): Promise<void> {
   await locator.evaluate((element) => (element as HTMLButtonElement).click());
 }
 
+async function expectSelectValue(locator: Locator, expected: string): Promise<void> {
+  await expect.poll(async () => locator.evaluate((element) => (element as HTMLSelectElement).value), {
+    timeout: 20_000,
+  }).toBe(expected);
+}
+
 async function waitForGame(page: Page) {
   const canvas = page.locator('#game canvas');
   await expect(canvas).toBeVisible();
@@ -105,13 +111,15 @@ test('mobile WebGL smoke journey', async ({ page }) => {
 
     const quality = page.locator('#qualitySelect');
     await quality.selectOption('low');
-    await expect(quality).toHaveValue('low');
+    // BrowserStack's iOS Playwright bridge does not support locator.toHaveValue().
+    // Read the native select value instead so the same persistence assertion remains portable.
+    await expectSelectValue(quality, 'low');
     await activateButton(continueButton);
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     canvas = await waitForGame(page);
     await activateButton(pauseButton);
-    await expect(page.locator('#qualitySelect')).toHaveValue('low');
+    await expectSelectValue(page.locator('#qualitySelect'), 'low');
     await activateButton(continueButton);
   });
 
