@@ -43,6 +43,14 @@ async function readCanvasDiagnostics(canvas: Locator): Promise<CanvasDiagnostics
   });
 }
 
+async function touchCenter(page: Page, locator: Locator): Promise<void> {
+  await expect(locator).toBeVisible();
+  const box = await locator.boundingBox();
+  expect(box).not.toBeNull();
+  if (!box) return;
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+}
+
 async function waitForGame(page: Page) {
   const canvas = page.locator('#game canvas');
   await expect(canvas).toBeVisible();
@@ -151,19 +159,21 @@ test('mobile WebGL smoke journey', async ({ page }) => {
     const pauseButton = page.getByRole('button', { name: 'Пауза' });
     const continueButton = page.getByRole('button', { name: 'ПРОДОЛЖИТЬ' });
 
-    await pauseButton.tap();
+    // Direct touchscreen injection avoids Chromium locator.tap() waiting on the
+    // pause button after the click handler immediately makes its HUD ancestor inert.
+    await touchCenter(page, pauseButton);
     await expect(page.getByRole('dialog', { name: 'Пауза и настройки' })).toBeVisible();
 
     const quality = page.locator('#qualitySelect');
     await quality.selectOption('low');
     await expect(quality).toHaveValue('low');
-    await continueButton.tap();
+    await touchCenter(page, continueButton);
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     canvas = await waitForGame(page);
-    await pauseButton.tap();
+    await touchCenter(page, pauseButton);
     await expect(page.locator('#qualitySelect')).toHaveValue('low');
-    await continueButton.tap();
+    await touchCenter(page, continueButton);
   });
 
   await test.step('runtime audit exposes viewport and canvas metrics', async () => {
