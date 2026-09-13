@@ -1,0 +1,51 @@
+name: BrowserStack Mobile Smoke
+
+on:
+  workflow_dispatch:
+
+jobs:
+  real-device-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BROWSERSTACK_USERNAME: ${{ secrets.BROWSERSTACK_USERNAME }}
+      BROWSERSTACK_ACCESS_KEY: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
+      BROWSERSTACK_RUN: '1'
+      BUILD_NUMBER: ${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify BrowserStack credentials
+        shell: bash
+        run: |
+          if [[ -z "$BROWSERSTACK_USERNAME" || -z "$BROWSERSTACK_ACCESS_KEY" ]]; then
+            echo "Add BROWSERSTACK_USERNAME and BROWSERSTACK_ACCESS_KEY as repository secrets before running this workflow."
+            exit 1
+          fi
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Install Playwright and BrowserStack SDK
+        run: npm install --no-save @playwright/test@1.63.0 browserstack-node-sdk@latest
+
+      - name: Run smoke suite on real mobile devices
+        run: npx browserstack-node-sdk "npm run test:e2e:browserstack"
+
+      - name: Upload local Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browserstack-mobile-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
