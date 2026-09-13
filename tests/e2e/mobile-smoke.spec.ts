@@ -55,7 +55,7 @@ async function waitForGame(page: Page) {
   return canvas;
 }
 
-test('mobile WebGL smoke journey', async ({ page }) => {
+test('mobile WebGL smoke journey', async ({ page, context, browserName }) => {
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -81,7 +81,7 @@ test('mobile WebGL smoke journey', async ({ page }) => {
   });
 
   if (!browserStackRun) {
-    await test.step('joystick responds to trusted pointer drag', async () => {
+    await test.step('joystick responds to trusted mobile pointer drag', async () => {
       const joystick = page.locator('#joystick');
       const stick = page.locator('#stick');
       const box = await joystick.boundingBox();
@@ -90,17 +90,58 @@ test('mobile WebGL smoke journey', async ({ page }) => {
 
       const centerX = box.x + box.width / 2;
       const centerY = box.y + box.height / 2;
+      const targetX = centerX + box.width * 0.22;
+      const targetY = centerY - box.height * 0.12;
 
-      await page.mouse.move(centerX, centerY);
-      await page.mouse.down();
-      await page.mouse.move(centerX + box.width * 0.22, centerY - box.height * 0.12, { steps: 4 });
+      if (browserName === 'chromium') {
+        // Chromium's mobile emulation suppresses Playwright mouse input for a touch-first
+        // page. CDP touch injection produces trusted touch/pointer events, matching the
+        // PointerEvent path used by InputController on a real Android device.
+        const cdp = await context.newCDPSession(page);
+        const touchPoint = (x: number, y: number) => ({
+          x,
+          y,
+          radiusX: 1,
+          radiusY: 1,
+          force: 1,
+        });
 
-      await expect.poll(async () => stick.evaluate((element) => (element as HTMLElement).style.transform))
-        .not.toBe('translate(0px, 0px)');
+        await cdp.send('Input.dispatchTouchEvent', {
+          type: 'touchStart',
+          touchPoints: [touchPoint(centerX, centerY)],
+        });
+        await cdp.send('Input.dispatchTouchEvent', {
+          type: 'touchMove',
+          touchPoints: [touchPoint(targetX, targetY)],
+        });
 
-      await page.mouse.up();
-      await expect.poll(async () => stick.evaluate((element) => (element as HTMLElement).style.transform))
-        .toBe('translate(0px, 0px)');
+        await expect.poll(
+          async () => stick.evaluate((element) => (element as HTMLElement).style.transform),
+          { timeout: 5_000 },
+        ).not.toBe('translate(0px, 0px)');
+
+        await cdp.send('Input.dispatchTouchEvent', {
+          type: 'touchEnd',
+          touchPoints: [],
+        });
+        await cdp.detach();
+      } else {
+        await page.mouse.move(centerX, centerY);
+        await page.mouse.down();
+        await page.mouse.move(targetX, targetY, { steps: 4 });
+
+        await expect.poll(
+          async () => stick.evaluate((element) => (element as HTMLElement).style.transform),
+          { timeout: 5_000 },
+        ).not.toBe('translate(0px, 0px)');
+
+        await page.mouse.up();
+      }
+
+      await expect.poll(
+        async () => stick.evaluate((element) => (element as HTMLElement).style.transform),
+        { timeout: 5_000 },
+      ).toBe('translate(0px, 0px)');
     });
   }
 
