@@ -11,6 +11,8 @@ export class Hud {
   readonly stick: HTMLElement;
   readonly interactButton: HTMLButtonElement;
   readonly soykaButton: HTMLButtonElement;
+  readonly jumpButton: HTMLButtonElement;
+  private noticeTimer = 0;
   readonly energyPanel: HTMLElement;
   readonly dialogue: HTMLElement;
   private readonly dialogueShell: HTMLElement;
@@ -34,6 +36,9 @@ export class Hud {
         <div class="save-indicator hidden" id="saveIndicator">◇ СОХРАНЕНО</div>
         <div class="joystick" id="joystick"><div class="stick" id="stick"></div></div>
         <button class="soyka-button" id="soykaButton"><span class="soyka-dot"></span><b>СОЙКА</b></button>
+        <button class="jump-button" id="jumpButton" aria-label="Прыгнуть (пробел)"><span aria-hidden="true">↥</span><small>ПРЫЖОК</small></button>
+        <div class="world-notice hidden" id="worldNotice" role="status" aria-live="polite"></div>
+        <div class="control-hint" id="controlHint"><span class="desktop-hint">WASD — идти · Мышь с зажатой кнопкой — осмотр · Пробел — прыжок · E — действие</span><span class="touch-hint">Слева — движение · Проведи по экрану — осмотр · ↥ — прыжок</span></div>
         <button class="interact hidden" id="interactButton">⚡ ВЗАИМОДЕЙСТВОВАТЬ</button>
         <div class="dialogue-shell" id="dialogueShell">
           <div class="dialogue-choices hidden" id="dialogueChoices"></div>
@@ -58,6 +63,7 @@ export class Hud {
     this.stick = this.require('#stick');
     this.interactButton = this.require<HTMLButtonElement>('#interactButton');
     this.soykaButton = this.require<HTMLButtonElement>('#soykaButton');
+    this.jumpButton = this.require<HTMLButtonElement>('#jumpButton');
     this.energyPanel = this.require('#energyPanel');
     this.dialogue = this.require('#dialogue');
     this.dialogueShell = this.require('#dialogueShell');
@@ -146,6 +152,16 @@ export class Hud {
   setObjective(text: string) {
     this.objective.textContent = text;
   }
+
+  notify(text: string, duration = 5000) {
+    const notice = this.require<HTMLElement>('#worldNotice');
+    window.clearTimeout(this.noticeTimer);
+    notice.textContent = text;
+    notice.classList.remove('hidden');
+    this.noticeTimer = window.setTimeout(() => notice.classList.add('hidden'), duration);
+  }
+
+  hideControlHint() { this.require('#controlHint').classList.add('hidden'); }
 
   flashAutosave() {
     this.saveIndicator.classList.remove('hidden');

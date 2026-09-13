@@ -133,7 +133,7 @@ export class SchoolReconstruction {
       this.cutAfterPromise = false;
     }
 
-    if (!this.active || this.strength < 0.55) return;
+    if (!this.active || this.strength < 0.55 || !player.grounded || Math.abs(player.position.y - 0.45) > 0.24) return;
 
     const localPlayer = this.localPlayerPosition.copy(player.position).sub(this.entrance);
     let heardCount = 0;
@@ -156,7 +156,8 @@ export class SchoolReconstruction {
         const accepted = this.dialogue.say(echo.speaker, echo.text, echo.youngLev ? 3.8 : 3.1);
         if (accepted) {
           window.setTimeout(() => {
-            if (player.position.distanceTo(startedAt) < echo.radius * 1.45 && !echo.heard) {
+            if (player.grounded && Math.abs(player.position.y - 0.45) < 0.24
+              && player.position.distanceTo(startedAt) < echo.radius * 1.45 && !echo.heard) {
               echo.heard = true;
               this.callbacks.onEchoHeard?.(echo.id);
             }

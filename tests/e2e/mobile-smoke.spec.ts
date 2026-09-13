@@ -72,6 +72,12 @@ async function waitForGame(page: Page) {
     throw error;
   }
 
+  // The scene boots behind the title screen; story timers and controls start only on entry.
+  await expect(page.locator('.opening-screen')).toBeVisible();
+  await expect(page.locator('#joystick')).toBeHidden();
+  if (!browserStackRun) await page.screenshot({ path: test.info().outputPath('opening.png') });
+  await activateButton(page.locator('.opening-start'));
+  await expect(page.locator('.opening-screen')).toBeHidden();
   return canvas;
 }
 
@@ -89,6 +95,7 @@ test('mobile WebGL smoke journey', async ({ page }) => {
   await test.step('boot WebGL scene and mobile HUD', async () => {
     await expect(page.locator('#joystick')).toBeVisible();
     await expect(page.locator('#soykaButton')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Прыгнуть (пробел)' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Пауза' })).toBeVisible();
     await expect(page.locator('#objective')).toContainText('НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ');
 
@@ -98,6 +105,7 @@ test('mobile WebGL smoke journey', async ({ page }) => {
     expect(dimensions.bufferWidth).toBeGreaterThan(0);
     expect(dimensions.bufferHeight).toBeGreaterThan(0);
     expect(dimensions.hasWebGL2).toBe(true);
+    if (!browserStackRun) await page.screenshot({ path: test.info().outputPath('lighthouse.png') });
   });
 
   await test.step('pause settings persist graphics quality', async () => {
@@ -218,5 +226,39 @@ test('mobile WebGL smoke journey', async ({ page }) => {
   if (consoleErrors.length > 0) {
     console.log(`[mobile-e2e] browser console errors: ${JSON.stringify(consoleErrors)}`);
   }
+  expect(pageErrors).toEqual([]);
+});
+
+
+test('legacy void save resumes safely without losing story choices', async ({ page }) => {
+  const pageErrors: string[] = [];
+  page.on('pageerror', (error) => pageErrors.push(error.message));
+  await page.addInitScript(() => {
+    localStorage.setItem('beacon-eclipse.settings.v1', JSON.stringify({ quality: 'low', sfxVolume: 0 }));
+    localStorage.setItem('beacon-eclipse.save.v1', JSON.stringify({
+      version: 1, savedAt: 1,
+      player: { position: { x: 0, y: -5000, z: -62 }, yaw: 0 },
+      progress: { lighthousePowered: true, warehouseContacted: true, warehouseFarewellPlayed: true,
+        bridgeStarted: true, schoolEntered: true },
+      energy: ['bridge', 'lights'], choices: { introMemory: 'mara' },
+      responseProfile: { direct: 1, vulnerable: 2, silent: 0 }, schoolEchoesHeard: [],
+    }));
+  });
+  await page.goto('/', { waitUntil: 'domcontentloaded' });
+  await waitForGame(page);
+  await expect(page.locator('#objective')).toContainText('ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ');
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('beacon-eclipse.save.v1') ?? '{}'));
+  expect(saved.player.position.y).toBeGreaterThan(0.25);
+  expect(saved.player.position.y).toBeLessThan(0.8);
+  expect(saved.player.position.z).toBeCloseTo(-59, 0);
+  expect(saved.choices.introMemory).toBe('mara');
+  expect(saved.responseProfile.vulnerable).toBe(2);
+  expect(saved.energy).toEqual(['bridge', 'lights']);
+  if (!browserStackRun) await page.screenshot({ path: test.info().outputPath('recovered-school.png') });
+
+  await activateButton(page.getByRole('button', { name: 'Пауза' }));
+  await activateButton(page.getByRole('button', { name: 'ВЕРНУТЬСЯ НА БЕЗОПАСНОЕ МЕСТО' }));
+  await expect(page.getByRole('dialog', { name: 'Пауза и настройки' })).toBeHidden();
+  await expect(page.locator('#jumpButton')).toBeEnabled();
   expect(pageErrors).toEqual([]);
 });

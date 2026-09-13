@@ -23,6 +23,7 @@ export class AudioSystem {
   private volume: number;
   private footstepTimer = 0;
   private creakTimer = 5 + Math.random() * 5;
+  private hornTimer = 12;
   private moving = false;
   private bridgeStarted = false;
   private readonly playerPosition = new THREE.Vector3();
@@ -135,12 +136,15 @@ export class AudioSystem {
     this.setPannerPosition(this.motorPanner, this.soykaPosition, now);
 
     const schoolBlend = THREE.MathUtils.clamp((-this.playerPosition.z - 54) / 12, 0, 1);
-    const outdoorBlend = 1 - schoolBlend * 0.72;
+    const lighthouseBlend = Math.abs(this.playerPosition.x) < 4.1
+      ? THREE.MathUtils.smoothstep(this.playerPosition.z, 17, 21) : 0;
+    const roomBlend = Math.max(schoolBlend, lighthouseBlend * 0.85);
+    const outdoorBlend = 1 - roomBlend * 0.78;
     this.setGainTarget(this.rainGain, 0.17 * outdoorBlend, now, 0.35);
     this.setGainTarget(this.windGain, 0.055 * outdoorBlend, now, 0.7);
-    this.setGainTarget(this.waterGain, 0.038 * (1 - schoolBlend * 0.55), now, 1.1);
-    this.setGainTarget(this.roomGain, 0.026 * schoolBlend, now, 0.5);
-    this.setGainTarget(this.roomReverbGain, 0.2 * schoolBlend, now, 0.45);
+    this.setGainTarget(this.waterGain, 0.038 * (1 - roomBlend * 0.7), now, 1.1);
+    this.setGainTarget(this.roomGain, 0.026 * roomBlend, now, 0.5);
+    this.setGainTarget(this.roomReverbGain, 0.2 * roomBlend, now, 0.45);
 
     const poweredSystems = (this.powerState.bridge ? 1 : 0)
       + (this.powerState.warehouse ? 1 : 0)
@@ -168,6 +172,13 @@ export class AudioSystem {
       this.footstepTimer = Math.min(this.footstepTimer, 0.08);
     }
 
+    if (outdoorBlend > 0.65) {
+      this.hornTimer -= dt;
+      if (this.hornTimer <= 0) {
+        this.playHarborHorn();
+        this.hornTimer = 36 + Math.random() * 22;
+      }
+    }
     const bridgeDistance = this.planarDistance(this.playerPosition, 0, -31.5);
     if (this.bridgeStarted && bridgeDistance < 20) {
       this.creakTimer -= dt;
@@ -264,7 +275,12 @@ export class AudioSystem {
     return gain;
   }
 
-  private playFootstep(): void {
+  playMovementCue(kind: 'jump' | 'land' | 'water' | 'relay'): void {
+    this.playFootstep(kind === 'water' ? 4 : kind === 'land' ? 1.8 : 0.7,
+      kind === 'water' ? 1100 : kind === 'relay' ? 1900 : kind === 'jump' ? 850 : undefined);
+  }
+
+  private playFootstep(weight = 1, frequency?: number): void {
     const context = this.context;
     const master = this.master;
     const noiseBuffer = this.noiseBuffer;
@@ -275,15 +291,40 @@ export class AudioSystem {
     source.buffer = noiseBuffer;
     const filter = context.createBiquadFilter();
     filter.type = 'bandpass';
-    filter.frequency.value = 520 + Math.random() * 180;
+    const metal = (this.playerPosition.z < -17 && this.playerPosition.z > -46)
+      || (this.playerPosition.z > 7 && this.playerPosition.z < 17 && Math.abs(this.playerPosition.x) < 2.5);
+    filter.frequency.value = frequency ?? (metal ? 1250 : 440) + Math.random() * 180;
     filter.Q.value = 0.8;
     const gain = context.createGain();
-    gain.gain.setValueAtTime(0.045, now);
+    gain.gain.setValueAtTime(0.045 * weight, now);
     gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
     source.connect(filter).connect(gain);
     gain.connect(master);
     if (this.roomReverb) gain.connect(this.roomReverb);
     source.start(now, Math.random() * 3.8, 0.13);
+  }
+
+  private playHarborHorn(): void {
+    const context = this.context;
+    if (!context || !this.master) return;
+    const now = context.currentTime;
+    const panner = this.createPanner(context, new THREE.Vector3(-58, 5, -22), 15, 160, 0.6);
+    panner.connect(this.master);
+    for (const frequency of [92, 138, 184]) {
+      const voice = context.createOscillator();
+      const gain = context.createGain();
+      voice.type = 'sine';
+      voice.frequency.setValueAtTime(frequency, now);
+      voice.frequency.linearRampToValueAtTime(frequency * 0.985, now + 3.7);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.exponentialRampToValueAtTime(0.038, now + 0.7);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 4.2);
+      voice.connect(gain).connect(panner);
+      voice.start(now);
+      voice.stop(now + 4.3);
+      voice.onended = () => { voice.disconnect(); gain.disconnect(); };
+    }
+    window.setTimeout(() => panner.disconnect(), 4800);
   }
 
   private playMetalCreak(): void {

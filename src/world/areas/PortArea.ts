@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { MaterialLibrary } from '../MaterialLibrary';
 
-type BoxSpec = readonly [x: number, z: number, sx: number, sy: number, sz: number];
+import { CONTAINERS } from '../HarborLayout';
 
 export class PortArea {
   constructor(scene: THREE.Scene, materials: MaterialLibrary) {
@@ -293,16 +293,7 @@ export class PortArea {
   }
 
   private addContainers(scene: THREE.Scene, materials: MaterialLibrary): void {
-    const specs: BoxSpec[] = [
-      [-9, -7, 5, 2.6, 12],
-      ...Array.from({ length: 7 }, (_, i) => [
-        -11 + (i % 3) * 4,
-        4 + Math.floor(i / 3) * 5,
-        3.4,
-        2.4,
-        4.2,
-      ] as const),
-    ];
+    const specs = CONTAINERS;
 
     const ribGeometry = new THREE.BoxGeometry(0.065, 1, 0.11);
     const ribs = new THREE.InstancedMesh(ribGeometry, materials.darkSteel, specs.length * 14);
@@ -349,7 +340,7 @@ export class PortArea {
     const matrix = new THREE.Matrix4();
     const placements = [
       [-7, -2], [-7, -10], [7, -2], [7, -10], [-5, -17],
-      [5, -17], [-4.5, -31], [4.5, -31], [-10.5, -19], [10.5, -19],
+      [5, -17], [-28, -16], [28, -16], [-24, -16], [24, -16],
     ] as const;
     placements.forEach(([x, z], index) => {
       matrix.makeTranslation(x, 0.37, z);
@@ -361,7 +352,7 @@ export class PortArea {
     const lampPostGeometry = new THREE.CylinderGeometry(0.045, 0.065, 3.4, 7);
     const lampPosts = new THREE.InstancedMesh(lampPostGeometry, materials.darkSteel, 5);
     const lamps = new THREE.InstancedMesh(new THREE.BoxGeometry(0.32, 0.16, 0.2), materials.amberSignal, 5);
-    const lampLocations = [[-6, -4], [6, -5], [-6, -14], [6, -16], [-4, -24]] as const;
+    const lampLocations = [[-6, -4], [6, -5], [-6, -14], [6, -16], [-4, -15]] as const;
     lampLocations.forEach(([x, z], index) => {
       matrix.makeTranslation(x, 1.7, z);
       lampPosts.setMatrixAt(index, matrix);
