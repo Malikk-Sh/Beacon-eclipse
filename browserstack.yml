@@ -1,0 +1,17 @@
+framework: playwright
+projectName: Beacon Eclipse
+buildName: Beacon Eclipse mobile smoke
+buildIdentifier: ${BUILD_NUMBER}
+parallelsPerPlatform: 1
+browserstackLocal: true
+debug: true
+video: true
+testObservability: true
+
+platforms:
+  - browserName: chrome
+    osVersion: '13'
+    deviceName: Google Pixel 7
+  - browserName: safari
+    osVersion: '17'
+    deviceName: iPhone 15 Pro Max
