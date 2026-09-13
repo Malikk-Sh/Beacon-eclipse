@@ -33,8 +33,8 @@ jobs:
       - name: Install project dependencies
         run: npm ci
 
-      - name: Install Playwright and BrowserStack SDK
-        run: npm install --no-save @playwright/test@1.63.0 browserstack-node-sdk@latest
+      - name: Install BrowserStack-compatible Playwright and SDK
+        run: npm install --no-save @playwright/test@1.59.1 browserstack-node-sdk@latest
 
       - name: Run smoke suite on real mobile devices
         run: npx browserstack-node-sdk "npm run test:e2e:browserstack"
