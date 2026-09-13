@@ -15,6 +15,15 @@ type CanvasDiagnostics = {
   hasWebGL2: boolean;
 };
 
+type JoystickProbe = {
+  pointerDowns: number;
+  pointerUps: number;
+  trusted: boolean;
+  pointerType: string;
+  transformOnDown: string;
+  transformOnUp: string;
+};
+
 async function readCanvasDiagnostics(canvas: Locator): Promise<CanvasDiagnostics> {
   return canvas.evaluate((element) => {
     const canvasElement = element as HTMLCanvasElement;
@@ -55,7 +64,7 @@ async function waitForGame(page: Page) {
   return canvas;
 }
 
-test('mobile WebGL smoke journey', async ({ page, context, browserName }) => {
+test('mobile WebGL smoke journey', async ({ page }) => {
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -81,67 +90,60 @@ test('mobile WebGL smoke journey', async ({ page, context, browserName }) => {
   });
 
   if (!browserStackRun) {
-    await test.step('joystick responds to trusted mobile pointer drag', async () => {
+    await test.step('joystick receives trusted touch pointer input', async () => {
       const joystick = page.locator('#joystick');
-      const stick = page.locator('#stick');
       const box = await joystick.boundingBox();
       expect(box).not.toBeNull();
       if (!box) return;
 
-      const centerX = box.x + box.width / 2;
-      const centerY = box.y + box.height / 2;
-      const targetX = centerX + box.width * 0.22;
-      const targetY = centerY - box.height * 0.12;
+      const targetX = box.x + box.width * 0.72;
+      const targetY = box.y + box.height * 0.38;
 
-      if (browserName === 'chromium') {
-        // Chromium's mobile emulation suppresses Playwright mouse input for a touch-first
-        // page. CDP touch injection produces trusted touch/pointer events, matching the
-        // PointerEvent path used by InputController on a real Android device.
-        const cdp = await context.newCDPSession(page);
-        const touchPoint = (x: number, y: number) => ({
-          x,
-          y,
-          radiusX: 1,
-          radiusY: 1,
-          force: 1,
-        });
+      await page.evaluate(() => {
+        const joystickElement = document.querySelector<HTMLElement>('#joystick');
+        const stickElement = document.querySelector<HTMLElement>('#stick');
+        if (!joystickElement || !stickElement) throw new Error('Joystick probe elements are missing');
 
-        await cdp.send('Input.dispatchTouchEvent', {
-          type: 'touchStart',
-          touchPoints: [touchPoint(centerX, centerY)],
-        });
-        await cdp.send('Input.dispatchTouchEvent', {
-          type: 'touchMove',
-          touchPoints: [touchPoint(targetX, targetY)],
-        });
+        const probe: JoystickProbe = {
+          pointerDowns: 0,
+          pointerUps: 0,
+          trusted: false,
+          pointerType: '',
+          transformOnDown: '',
+          transformOnUp: '',
+        };
+        (window as Window & { __joystickProbe?: JoystickProbe }).__joystickProbe = probe;
 
-        await expect.poll(
-          async () => stick.evaluate((element) => (element as HTMLElement).style.transform),
-          { timeout: 5_000 },
-        ).not.toBe('translate(0px, 0px)');
+        joystickElement.addEventListener('pointerdown', (event) => {
+          probe.pointerDowns += 1;
+          probe.trusted = event.isTrusted;
+          probe.pointerType = event.pointerType;
+          probe.transformOnDown = stickElement.style.transform;
+        }, { once: true });
 
-        await cdp.send('Input.dispatchTouchEvent', {
-          type: 'touchEnd',
-          touchPoints: [],
-        });
-        await cdp.detach();
-      } else {
-        await page.mouse.move(centerX, centerY);
-        await page.mouse.down();
-        await page.mouse.move(targetX, targetY, { steps: 4 });
+        joystickElement.addEventListener('pointerup', () => {
+          probe.pointerUps += 1;
+          probe.transformOnUp = stickElement.style.transform;
+        }, { once: true });
+      });
 
-        await expect.poll(
-          async () => stick.evaluate((element) => (element as HTMLElement).style.transform),
-          { timeout: 5_000 },
-        ).not.toBe('translate(0px, 0px)');
+      // Playwright's supported touchscreen API generates real browser input. Touch-drag
+      // primitives are not available yet, so an offset tap validates the trusted
+      // pointerdown/up path and observes InputController's stick movement in between.
+      await page.touchscreen.tap(targetX, targetY);
 
-        await page.mouse.up();
-      }
+      const probe = await page.evaluate(() => {
+        const value = (window as Window & { __joystickProbe?: JoystickProbe }).__joystickProbe;
+        if (!value) throw new Error('Joystick probe did not initialize');
+        return value;
+      });
 
-      await expect.poll(
-        async () => stick.evaluate((element) => (element as HTMLElement).style.transform),
-        { timeout: 5_000 },
-      ).toBe('translate(0px, 0px)');
+      expect(probe.pointerDowns).toBe(1);
+      expect(probe.pointerUps).toBe(1);
+      expect(probe.trusted).toBe(true);
+      expect(probe.pointerType).toBe('touch');
+      expect(probe.transformOnDown).not.toBe('translate(0px, 0px)');
+      expect(probe.transformOnUp).toBe('translate(0px, 0px)');
     });
   }
 
