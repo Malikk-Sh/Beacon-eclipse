@@ -148,19 +148,22 @@ test('mobile WebGL smoke journey', async ({ page }) => {
   }
 
   await test.step('pause settings persist graphics quality', async () => {
-    await page.getByRole('button', { name: 'Пауза' }).click();
+    const pauseButton = page.getByRole('button', { name: 'Пауза' });
+    const continueButton = page.getByRole('button', { name: 'ПРОДОЛЖИТЬ' });
+
+    await pauseButton.tap();
     await expect(page.getByRole('dialog', { name: 'Пауза и настройки' })).toBeVisible();
 
     const quality = page.locator('#qualitySelect');
     await quality.selectOption('low');
     await expect(quality).toHaveValue('low');
-    await page.getByRole('button', { name: 'ПРОДОЛЖИТЬ' }).click();
+    await continueButton.tap();
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     canvas = await waitForGame(page);
-    await page.getByRole('button', { name: 'Пауза' }).click();
+    await pauseButton.tap();
     await expect(page.locator('#qualitySelect')).toHaveValue('low');
-    await page.getByRole('button', { name: 'ПРОДОЛЖИТЬ' }).click();
+    await continueButton.tap();
   });
 
   await test.step('runtime audit exposes viewport and canvas metrics', async () => {
