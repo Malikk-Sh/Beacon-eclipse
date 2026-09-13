@@ -14,6 +14,7 @@ export class InputController {
   private cameraQueued = false;
   private firstPerson = false;
   private wasPointerLocked = false;
+  private pointerLockAllowed = true;
   onPointerUnlock?: () => void;
 
   constructor(
@@ -64,7 +65,7 @@ export class InputController {
 
     lookSurface.addEventListener('pointerdown', (event) => {
       if (!this.enabled || event.button !== 0 || this.lookPointer !== null) return;
-      if (this.firstPerson && event.pointerType === 'mouse' && lookSurface.requestPointerLock
+      if (this.firstPerson && this.pointerLockAllowed && event.pointerType === 'mouse' && lookSurface.requestPointerLock
         && this.lookSurface.ownerDocument.pointerLockElement !== lookSurface) {
         try { Promise.resolve(lookSurface.requestPointerLock()).catch(() => undefined); } catch { /* Drag remains available. */ }
       }
@@ -94,7 +95,7 @@ export class InputController {
       const locked = this.lookSurface.ownerDocument.pointerLockElement === lookSurface;
       if (this.wasPointerLocked && !locked) {
         this.reset();
-        if (this.enabled && this.firstPerson) this.onPointerUnlock?.();
+        if (this.enabled && this.firstPerson && this.pointerLockAllowed) this.onPointerUnlock?.();
       }
       this.wasPointerLocked = locked;
     });
@@ -154,6 +155,11 @@ export class InputController {
     this.firstPerson = enabled;
     if (!enabled && this.lookSurface.ownerDocument.pointerLockElement === this.lookSurface) this.lookSurface.ownerDocument.exitPointerLock?.();
     this.lookDelta.set(0, 0);
+  }
+
+  setPointerLockAllowed(allowed: boolean): void {
+    this.pointerLockAllowed = allowed;
+    if (!allowed && this.lookSurface.ownerDocument.pointerLockElement === this.lookSurface) this.lookSurface.ownerDocument.exitPointerLock?.();
   }
 
   consumeCameraToggle(): boolean {

@@ -196,12 +196,15 @@ test('dialogue stops imitation for choices, replacement and ending; only game up
   const d = new DialogueSystem(hud, voice);
   d.play([{ kind: 'line', speaker: 'МАРА', text: 'Алло', duration: 1 }, { kind: 'choice', options: [], timeout: 1 }]);
   assert.deepEqual(events, ['stop', 'start:МАРА']);
+  assert.equal(d.isChoosing, false);
   d.update(1); assert.deepEqual(events.slice(-2), ['tick', 'stop']);
+  assert.equal(d.isChoosing, true);
   const ticks = events.filter(x => x === 'tick').length;
   d.update(0.3); assert.equal(events.filter(x => x === 'tick').length, ticks);
   d.play([{ kind: 'line', speaker: 'ЛЕВ', text: 'Да', duration: 1 }]);
   assert.deepEqual(events.slice(-2), ['stop', 'start:ЛЕВ']);
   d.stop(); assert.equal(events.at(-1), 'stop');
+  assert.equal(d.isChoosing, false);
   const length = events.length; d.update(2); assert.equal(events.length, length);
 });
 
@@ -225,4 +228,17 @@ test('V toggles once; drag look remains available without pointer lock; blur cle
   assert.equal(input.consumeCameraToggle(), false);
   input.setEnabled(false); window.dispatchEvent(new window.KeyboardEvent('keydown', { code: 'KeyV' }));
   assert.equal(input.consumeCameraToggle(), false);
+  let lock: unknown = null, pauseRequests = 0;
+  Object.defineProperty(document, 'pointerLockElement', { get: () => lock });
+  Object.assign(document, { exitPointerLock() { lock = null; document.dispatchEvent(new window.Event('pointerlockchange')); } });
+  input.onPointerUnlock = () => { pauseRequests++; };
+  input.setEnabled(true); lock = canvas; document.dispatchEvent(new window.Event('pointerlockchange'));
+  input.setEnabled(false); // Dialogue/energy UI owns focus; releasing must not pause the story.
+  assert.equal(lock, null); assert.equal(pauseRequests, 0);
+  input.setEnabled(true); lock = canvas; document.dispatchEvent(new window.Event('pointerlockchange'));
+  input.setPointerLockAllowed(false);
+  assert.equal(lock, null); assert.equal(pauseRequests, 0, 'clickable replies must not pause their timer');
+  input.setPointerLockAllowed(true); lock = canvas; document.dispatchEvent(new window.Event('pointerlockchange'));
+  lock = null; document.dispatchEvent(new window.Event('pointerlockchange'));
+  assert.equal(pauseRequests, 1, 'Escape/browser unlock should request pause');
 });

@@ -51,6 +51,8 @@ export class DialogueSystem {
     return this.current !== null || this.queue.length > 0;
   }
 
+  get isChoosing(): boolean { return this.current?.kind === 'choice'; }
+
   play(steps: DialogueStep[], onComplete?: () => void) {
     this.queue = [...steps];
     this.current = null;

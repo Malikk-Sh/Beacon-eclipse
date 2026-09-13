@@ -685,6 +685,8 @@ function animate() {
 
   if (journeyStarted && !paused && !sliceEnded) {
     gameElapsed += dt;
+    // Release pointer lock for clickable replies without pausing their story timer.
+    input.setPointerLockAllowed(!dialogue.isChoosing);
     const controlsBlocked = hud.isEnergyOpen || cutoff.isOpen;
     input.setEnabled(!controlsBlocked);
     hud.interactButton.disabled = controlsBlocked || farewell.active;
