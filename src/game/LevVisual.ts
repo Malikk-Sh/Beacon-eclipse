@@ -150,12 +150,17 @@ export class LevVisual {
     consolidate(this.root);
   }
 
-  setFirstPerson(first: boolean): void { this.head.visible = !first; this.equipment.visible = !first; }
+  setFirstPerson(first: boolean): void {
+    // Hide the entire local model, including its shadow, equipment and limbs.
+    this.root.visible = !first;
+    this.head.visible = !first;
+    this.equipment.visible = !first;
+  }
 
-  update(dt: number, moving: boolean, grounded = true, verticalSpeed = 0, landing = 0): void {
+  update(dt: number, moving: boolean, grounded = true, verticalSpeed = 0, landing = 0, pace = 1): void {
     this.elapsed += dt;
-    this.blend = THREE.MathUtils.damp(this.blend, moving && grounded ? 1 : 0, 9, dt);
-    this.gait += dt * 9.2 * this.blend;
+    this.blend = THREE.MathUtils.damp(this.blend, moving && grounded ? Math.min(1, pace) : 0, 9, dt);
+    this.gait += dt * 6.6 * Math.sqrt(this.blend);
     const stride = Math.sin(this.gait);
     this.torso.rotation.set(-0.045 * this.blend - landing * 0.08, stride * 0.035 * this.blend,
       stride * 0.013 * this.blend + Math.sin(this.elapsed * 1.3) * 0.004);
@@ -171,7 +176,7 @@ export class LevVisual {
     this.legs.forEach((leg, i) => {
       const phase = this.gait + i * Math.PI;
       const lift = Math.max(0, Math.cos(phase)) * 0.08 * this.blend + landing * 0.065;
-      const z = Math.sin(phase) * 0.165 * this.blend;
+      const z = Math.sin(phase) * 0.25 * this.blend;
       const down = 0.754 - lift;
       const d = Math.min(0.769, Math.hypot(down, z));
       const bend = Math.PI - Math.acos(THREE.MathUtils.clamp((0.38 ** 2 + 0.39 ** 2 - d * d) / (2 * 0.38 * 0.39), -1, 1));

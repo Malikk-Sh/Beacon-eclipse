@@ -8,14 +8,14 @@ export class OpeningScreen {
     overlay.innerHTML = `
       <div class="opening-station"><span class="opening-signal"></span> СЕВЕРНЫЙ МАЯК <span>22:47 / 9°C</span></div>
       <section class="opening-copy">
-        <p class="opening-eyebrow">ГЛАВА I · ПОСЛЕДНИЙ СИГНАЛ</p>
+        <p class="opening-eyebrow">ГЛАВА I · НУЛЕВОЙ ПРИЛИВ</p>
         <h1>ПОКА ГОРОД<br><em>ПОМНИТ</em></h1>
-        <p class="opening-description">Свет маяка погас.<br>В школе на другом берегу кто-то всё ещё ждёт.</p>
+        <p class="opening-description">Часы остановились на 22:47.<br>Из закрытой школы звучит колокол.<br>Радио отвечает твоим голосом — раньше вопроса.</p>
         <button type="button" class="opening-start">${returning ? 'ПРОДОЛЖИТЬ ПУТЬ' : 'НАЧАТЬ ПУТЬ'} <span aria-hidden="true">→</span></button>
         ${returning ? '<button type="button" class="opening-restart">Начать заново</button><div class="opening-confirm hidden"><p>Начать новый путь? Текущее сохранение будет заменено.</p><button type="button" data-restart="yes">Да, начать сначала</button><button type="button" data-restart="no">Оставить сохранение</button></div>' : ''}
-        <p class="opening-footnote">${returning ? 'Ваши решения и найденные записи сохранены.' : 'Исследуй порт. Слушай город. Решай, чему дать свет.'}</p>
+        <p class="opening-footnote">${returning ? 'Ваши решения и найденные записи сохранены.' : 'Проследи сигнал. Найди отметки. Реши, кому позволить слушать.'}</p>
       </section>
-      <div class="opening-bottom"><span>ШТОРМОВОЕ ПРЕДУПРЕЖДЕНИЕ · СЕКТОР 04</span><span>Для атмосферы — наушники</span></div>
+      <div class="opening-bottom"><span>ПРИЛИВ НЕ СООТВЕТСТВУЕТ ПРОГНОЗУ · СЕКТОР 04</span><span>Для атмосферы — наушники</span></div>
     `;
     root.classList.add('at-title');
     root.appendChild(overlay);

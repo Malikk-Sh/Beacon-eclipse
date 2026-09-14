@@ -25,7 +25,7 @@ const DEFAULT_PORT_ECHOES: MemoryEchoDefinition[] = [
   {
     id: 'woman-phone',
     speaker: 'ЖЕНСКИЙ ГОЛОС',
-    text: 'Лев, оставь телефон хотя бы на пять минут.',
+    text: 'Не отвечай тому, кто повторяет твой голос.',
     position: new THREE.Vector3(-2.4, 0, -1.2),
     radius: 1.9,
     duration: 2.8,
@@ -35,7 +35,7 @@ const DEFAULT_PORT_ECHOES: MemoryEchoDefinition[] = [
   {
     id: 'worker-pump',
     speaker: 'РАБОЧИЙ',
-    text: 'Арден, западный насос опять клинит.',
+    text: 'Вода уходит вверх по трубе. Закрой задвижку.',
     position: new THREE.Vector3(1.8, 0, -0.6),
     radius: 1.85,
     duration: 2.7,
@@ -45,7 +45,7 @@ const DEFAULT_PORT_ECHOES: MemoryEchoDefinition[] = [
   {
     id: 'girl-promise',
     speaker: 'ДЕВОЧКА',
-    text: 'Ты обещал, что сегодня без работы.',
+    text: 'Восемь. Только восемь. Не звони ещё раз.',
     position: new THREE.Vector3(0.3, 0, 2.2),
     radius: 1.75,
     duration: 2.6,
@@ -55,7 +55,7 @@ const DEFAULT_PORT_ECHOES: MemoryEchoDefinition[] = [
   {
     id: 'port-announcement',
     speaker: 'ГРОМКОГОВОРИТЕЛЬ',
-    text: 'Учебная эвакуация северного порта переносится на пятницу.',
+    text: 'Северный порт. Сегодняшняя смена уже закончилась вчера.',
     position: new THREE.Vector3(3.0, 0, 1.6),
     radius: 2.05,
     duration: 3.2,

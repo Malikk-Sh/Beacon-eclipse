@@ -17,9 +17,9 @@ export class FirstPersonCamera {
   reset(): void { this.phase = 0; this.blend = 0; }
 
   update(position: THREE.Vector3, yaw: number, pitch: number, dt: number,
-    moving = false, grounded = true, motion = true): void {
-    this.blend = THREE.MathUtils.damp(this.blend, moving && grounded && motion ? 1 : 0, 12, dt);
-    if (moving && grounded) this.phase += dt * 9;
+    moving = false, grounded = true, motion = true, pace = 1): void {
+    this.blend = THREE.MathUtils.damp(this.blend, moving && grounded && motion ? Math.min(1, pace) : 0, 12, dt);
+    if (moving && grounded) this.phase += dt * 6.6 * Math.sqrt(Math.min(1, pace));
     this.eye.copy(position);
     this.eye.y += 1.68;
     const side = Math.sin(this.phase) * 0.009 * this.blend;

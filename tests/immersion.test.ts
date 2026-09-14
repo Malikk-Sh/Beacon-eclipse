@@ -145,9 +145,10 @@ test('detailed animated models retain human scale, finite joints and a bounded d
   lev.setFirstPerson(true);
   assert.equal(lev.root.getObjectByName('lev-head')!.visible, false);
   assert.equal(lev.root.getObjectByName('lev-backpack')!.visible, false);
-  assert.equal(lev.root.visible, true);
+  assert.equal(lev.root.visible, false);
   lev.setFirstPerson(false);
   assert.equal(lev.root.getObjectByName('lev-head')!.visible, true);
+  assert.equal(lev.root.visible, true);
   // The entire rotating drone must fit its collision sphere, including tools and aerial.
   soyka.root.updateMatrixWorld(true);
   soyka.root.traverse(o => {

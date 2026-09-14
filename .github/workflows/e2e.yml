@@ -7,44 +7,88 @@ on:
       - 'feature/**'
   pull_request:
     branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
 
 concurrency:
   group: mobile-e2e-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  mobile-smoke:
+  evidence:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 3
+    outputs:
+      reuse: ${{ steps.coverage.outputs.reuse }}
+      matrix: ${{ steps.coverage.outputs.matrix }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify existing browser coverage
+        id: coverage
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node .github/scripts/e2e-evidence.mjs
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+  browser:
+    name: browser-${{ matrix.id }}
+    needs: evidence
+    if: needs.evidence.outputs.reuse != 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.evidence.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
       - name: Install project dependencies
         run: npm ci
-
-      - name: Install Playwright test runner
-        run: npm install --no-save @playwright/test@1.63.0
-
-      - name: Install Chromium and WebKit
-        run: npx playwright install --with-deps chromium webkit
-
-      - name: Run mobile smoke tests
-        run: npm run test:e2e
-
+      - name: Install browser
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Run browser scenarios
+        run: npm run test:e2e -- --project=${{ matrix.project }} --shard=${{ matrix.shard }}
       - name: Upload Playwright report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-mobile-report-${{ github.sha }}
+          name: playwright-${{ matrix.id }}-${{ github.run_id }}
           path: |
             playwright-report/
             test-results/
           if-no-files-found: ignore
           retention-days: 7
+
+  # Stable check name. Skipped/cancelled jobs cannot make this gate green unless
+  # the evidence job has independently verified a complete identical-tree run.
+  mobile-smoke:
+    if: always()
+    needs: [evidence, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require verified browser coverage
+        env:
+          EVIDENCE_RESULT: ${{ needs.evidence.result }}
+          REUSE: ${{ needs.evidence.outputs.reuse }}
+          BROWSER_RESULT: ${{ needs.browser.result }}
+        run: |
+          test "$EVIDENCE_RESULT" = success
+          if [ "$REUSE" = true ]; then
+            test "$BROWSER_RESULT" = skipped
+          else
+            test "$BROWSER_RESULT" = success
+          fi

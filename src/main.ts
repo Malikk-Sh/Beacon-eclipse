@@ -34,6 +34,9 @@ import { WarehouseCutoff } from './ui/WarehouseCutoff';
 import { VisualFoundation } from './world/VisualFoundation';
 import { WorldDetailPass } from './world/WorldDetailPass';
 import './premium.css';
+import './mystery.css';
+import { openingStory, warehouseStory, endingStory, commitEnding, chapterObjective, chapterRecap, SCHOOL_CLUES, line } from './game/MysteryStory';
+import { MysteryAtmosphere } from './world/MysteryAtmosphere';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) throw new Error('Missing #app root');
@@ -61,16 +64,21 @@ const memory = new MemoryReconstructionSystem(world.scene, new THREE.Vector3(-3,
 const school = new SchoolReconstruction(world.scene, physics, dialogue, {
   onEchoHeard: (id) => {
     if (!storyState.schoolEchoesHeard.includes(id)) storyState.schoolEchoesHeard.push(id);
+    syncJournal();
+    syncObjective();
+    hud.notify('Отметка смотрителя сохранена в журнале.');
+    audioSystem.playMysteryCue('clue');
     persist(false);
   },
   onComplete: () => {
     storyState.progress.schoolReconstructionCompleted = true;
     archiveTerminal.setAvailable(true);
-    hud.setObjective('ВЕРНУТЬСЯ К АРХИВНОМУ ТЕРМИНАЛУ');
+    syncObjective();
     persist(true);
   },
 }, world.cameraObstacles);
 new WorldDetailPass(world.scene, physics);
+const mysteryAtmosphere = new MysteryAtmosphere(world.scene, physics, storyState);
 const spawn = new THREE.Vector3(
   storyState.player.position.x,
   storyState.player.position.y,
@@ -89,7 +97,7 @@ school.restore(
   storyState.progress.schoolReconstructionCompleted,
 );
 archiveTerminal.setAvailable(storyState.progress.schoolReconstructionCompleted);
-if (storyState.progress.bridgeArchiveTerminalSeen) archiveTerminal.showIdentityMatch();
+if (storyState.choices.tideEnding === 'seal' || storyState.choices.tideEnding === 'transmit') archiveTerminal.showOutcome(storyState.choices.tideEnding);
 hud.refreshEnergy();
 physics.step();
 const traversal = new TraversalSafety(physics, player, storyState.progress, () => world.isBridgeReady);
@@ -105,6 +113,8 @@ renderer.toneMappingExposure = 1.05;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 visualFoundation.initializeRenderer(renderer);
 hud.gameContainer.appendChild(renderer.domElement);
+renderer.domElement.tabIndex = 0;
+renderer.domElement.setAttribute('aria-label', 'Игровой вид');
 
 const qualityPresets: Record<GraphicsQuality, { pixelRatio: number; shadows: boolean }> = {
   low: { pixelRatio: 1, shadows: false },
@@ -149,7 +159,9 @@ function setCameraMode(mode: CameraMode, save = true): void {
   hud.setCameraMode(mode);
   input.setFirstPerson(mode === 'first');
   player.setFirstPerson(mode === 'first');
-  camera.fov = mode === 'first' ? 68 : 55;
+  camera.fov = mode === 'first' ? settings.fieldOfView : settings.thirdPersonFieldOfView;
+  pauseMenu.fovRange.value = String(camera.fov);
+  pauseMenu.fovValue.textContent = `${camera.fov}°`;
   camera.near = mode === 'first' ? 0.06 : 0.1;
   camera.updateProjectionMatrix();
   cameraController.reset();
@@ -166,6 +178,16 @@ hud.cameraButton.addEventListener('click', () => {
 });
 pauseMenu.cameraSelect.addEventListener('change', () => setCameraMode(pauseMenu.cameraSelect.value === 'first' ? 'first' : 'third'));
 input.onPointerUnlock = () => setPaused(true);
+pauseMenu.fovRange.addEventListener('input', () => {
+  const value = THREE.MathUtils.clamp(Number(pauseMenu.fovRange.value), 50, 90);
+  if (cameraMode === 'first') settings.fieldOfView = value;
+  else settings.thirdPersonFieldOfView = value;
+  camera.fov = value;
+  camera.updateProjectionMatrix();
+  pauseMenu.fovValue.textContent = `${value}°`;
+  renderRequested = true;
+  settingsStore.save(settings);
+});
 
 const cutoff = new WarehouseCutoff(app, () => {
   if (paused || sliceEnded) return;
@@ -183,15 +205,17 @@ const farewell = new WarehouseFarewell(storyState, energy, dialogue, {
     cutoff.hide();
     syncObjective();
     persist(false);
-    pauseButton.focus({ preventScroll: true });
+    renderer.domElement.focus({ preventScroll: true });
   },
   onCutoff: () => {
     cutoff.hide();
     soyka.lookBackAt(world.landmarks.warehouse04);
-    dialogue.say('СВЯЗЬ', 'Сигнал потерян.', 2.4);
+    dialogue.say('СВЯЗЬ · ГОЛОС ЛЬВА', 'Я всё ещё слышу тебя.', 3.8);
+    mysteryAtmosphere.pulse('cutoff');
+    audioSystem.playMysteryCue('cutoff');
     syncObjective();
     persist(true);
-    pauseButton.focus({ preventScroll: true });
+    renderer.domElement.focus({ preventScroll: true });
   },
 });
 
@@ -223,6 +247,7 @@ function persist(showIndicator = false) {
 function setPaused(next: boolean) {
   if (!journeyStarted || sliceEnded || paused === next) return;
   paused = next;
+  dialogue.setPaused(paused);
   renderRequested = true;
   input.setEnabled(!paused && !hud.isEnergyOpen && !cutoff.isOpen);
   hud.setPaused(paused);
@@ -233,7 +258,7 @@ function setPaused(next: boolean) {
     pauseMenu.open();
   } else {
     pauseMenu.close();
-    pauseButton.focus({ preventScroll: true });
+    renderer.domElement.focus({ preventScroll: true });
   }
 }
 
@@ -279,51 +304,43 @@ addEventListener('keydown', (event) => {
     setPaused(!paused);
     return;
   }
-  if (paused && dialogueChoiceKeys.has(event.code)) {
+  if ((paused || sliceEnded) && (dialogueChoiceKeys.has(event.code) || event.code === 'Enter')) {
+    if ((event.target as HTMLElement | null)?.closest?.('button, input, select')) return;
     event.preventDefault();
     event.stopImmediatePropagation();
   }
 }, true);
 
 function syncObjective() {
-  const progress = storyState.progress;
-  if (!progress.lighthousePowered) {
-    hud.setObjective('НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ');
-  } else if (progress.bridgeArchiveTerminalSeen) {
-    hud.setObjective('ВЕРТИКАЛЬНЫЙ СРЕЗ ЗАВЕРШЁН');
-  } else if (progress.schoolReconstructionCompleted) {
-    hud.setObjective('ВЕРНУТЬСЯ К АРХИВНОМУ ТЕРМИНАЛУ');
-  } else if (progress.schoolReconstructionStarted) {
-    hud.setObjective('ИССЛЕДОВАТЬ РЕКОНСТРУКЦИЮ');
-  } else if (progress.schoolEntered) {
-    hud.setObjective('ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ');
-  } else if (progress.bridgeStarted) {
-    hud.setObjective('ДОЙТИ ДО ШКОЛЫ');
-  } else if (progress.warehouseContacted && energy.isActive('bridge')) {
-    hud.setObjective('ЗАПУСТИТЬ ПРИВОД МОСТА');
-  } else if (progress.warehouseContacted) {
-    hud.setObjective('ВОССТАНОВИТЬ ПИТАНИЕ МОСТА');
-  } else if (energy.isActive('warehouse')) {
-    hud.setObjective('ПРОВЕРИТЬ СКЛАД 04');
-  } else {
-    hud.setObjective('ДОБРАТЬСЯ ДО ЭНЕРГОСТАНЦИИ');
-  }
+  hud.setObjective(chapterObjective(storyState, id => energy.isActive(id)));
 }
 
 syncObjective();
+hud.onEnergyClose = syncObjective;
 if (loadedState) hud.hideDialogue();
 
 function syncJournal() {
-  pauseMenu.setJournal(HARBOR_DISCOVERIES.filter((item) => storyState.choices[`harbor:${item.id}`] === 'read')
-    .map((item) => ({ title: item.title, text: item.text })), HARBOR_DISCOVERIES.length);
+  const entries = HARBOR_DISCOVERIES.filter(item => storyState.choices[`harbor:${item.id}`] === 'read')
+    .map(item => ({ title: item.title as string, text: item.text as string }));
+  entries.push(...SCHOOL_CLUES.filter(item => storyState.schoolEchoesHeard.includes(item.id))
+    .map(item => ({ title: item.title, text: item.text })));
+  pauseMenu.setJournal(entries, HARBOR_DISCOVERIES.length + SCHOOL_CLUES.length);
 }
+
 syncJournal();
+// After the chapter, missed evidence remains readable without replaying the apparition.
+for (const clue of SCHOOL_CLUES) interactions.add({
+  id: `remaining-${clue.id}`, label: `◎ ${clue.title}`, position: new THREE.Vector3(clue.x, 0.45, clue.z), radius: 2.5,
+  enabled: () => storyState.progress.schoolReconstructionCompleted && !storyState.schoolEchoesHeard.includes(clue.id) && !dialogue.isBusy,
+  action: () => dialogue.play([line(clue.speaker, clue.text)], () => { school.recordClue(clue.id); persist(true); }),
+});
 for (const item of HARBOR_DISCOVERIES) {
   interactions.add({
     id: item.id, label: `◎ ${item.title}`, position: new THREE.Vector3(item.x, 0, item.z), radius: 2.1,
     enabled: () => !dialogue.isBusy && !farewell.active && !storyState.choices[`harbor:${item.id}`],
     action: () => {
       rememberChoice(`harbor:${item.id}`, 'read');
+      audioSystem.playMysteryCue('clue');
       dialogue.say(item.speaker, item.text, 9);
       hud.notify('Найдена запись. Её можно перечитать в меню паузы.', 4500);
       syncJournal();
@@ -342,11 +359,11 @@ interactions.add({
     storyState.progress.lighthousePowered = true;
     world.unlockLighthouseDoor();
     audioSystem.playMovementCue('relay');
-    hud.setObjective('ДОБРАТЬСЯ ДО ЭНЕРГОСТАНЦИИ');
+    syncObjective();
     persist(true);
     dialogue.play([
-      { kind: 'line', speaker: 'МАРА', text: 'Есть питание.', duration: 1.8 },
-      { kind: 'line', speaker: 'МАРА', text: 'Дверь разблокирована. Спускайся к порту.', duration: 3.1 },
+      line('МАРА', 'Маяк запущен. Видишь — часы всё равно стоят.'),
+      line('МАРА', 'Дверь открыта. Распределитель за спуском, склад справа от него. Не торопись: наши таймеры ещё идут.'),
     ]);
   },
 });
@@ -366,7 +383,7 @@ interactions.add({
 
 interactions.add({
   id: 'memory-bracelet',
-  label: '◎ КРАСНЫЙ БРАСЛЕТ — КОСНУТЬСЯ',
+  label: '◎ КРАСНАЯ ПЕТЛЯ — ОСМОТРЕТЬ',
   position: memory.anchorPosition,
   radius: 2.2,
   enabled: () => energy.isActive('pumps')
@@ -382,11 +399,9 @@ interactions.add({
     if (!started) return;
 
     dialogue.play([
-      { kind: 'line', speaker: 'ЛЕВ', text: '...', duration: 1.2 },
-      { kind: 'line', speaker: 'ДЕТСКИЙ ГОЛОС', text: 'Папа, ну хватит!', duration: 2.2 },
-      { kind: 'line', speaker: 'ЛЕВ', text: 'Кто?..', duration: 1.7 },
-      { kind: 'line', speaker: 'МАРА', text: 'Лев? Что случилось?', duration: 2.4 },
-      { kind: 'line', speaker: 'ЛЕВ', text: 'Не знаю.', duration: 1.7 },
+      line('ЛЕВ', 'Красный шнур. Он мокрый, но вода с него поднимается вверх.'),
+      line('СВЯЗЬ', 'Восемь. Только восемь.'),
+      line('СОЙКА', 'Материал обычный. Направление капель — нет.'),
     ]);
   },
 });
@@ -402,63 +417,14 @@ interactions.add({
     && !dialogue.isBusy,
   action: () => {
     warehouseConversationActive = true;
-    dialogue.play([
-      { kind: 'line', speaker: 'НЕИЗВЕСТНЫЙ ГОЛОС', text: '...эй?', duration: 1.7 },
-      { kind: 'line', speaker: 'НЕИЗВЕСТНЫЙ ГОЛОС', text: 'Здесь кто-нибудь есть?', duration: 2.4 },
-      { kind: 'line', speaker: 'ЛЕВ', text: 'Я здесь.', duration: 1.7 },
-      { kind: 'line', speaker: 'НЕИЗВЕСТНЫЙ ГОЛОС', text: 'Правда?', duration: 1.8 },
-      { kind: 'line', speaker: 'ЛЕВ', text: 'Кто ты?', duration: 1.8 },
-      { kind: 'line', speaker: 'НИКА', text: 'Не знаю.', duration: 1.5 },
-      { kind: 'line', speaker: 'НИКА', text: 'То есть знаю. Ника.', duration: 2.4 },
-      { kind: 'line', speaker: 'НИКА', text: 'Ты спасатель?', duration: 2.3 },
-      {
-        kind: 'choice',
-        timeout: 6,
-        options: [
-          {
-            id: 'probably',
-            text: 'Наверное.',
-            followUp: [
-              { kind: 'line', speaker: 'ЛЕВ', text: 'Наверное.', duration: 1.6 },
-              { kind: 'line', speaker: 'НИКА', text: 'Очень уверенно прозвучало.', duration: 2.4 },
-            ],
-          },
-          {
-            id: 'engineer',
-            text: 'Я инженер.',
-            followUp: [
-              { kind: 'line', speaker: 'ЛЕВ', text: 'Я инженер.', duration: 1.6 },
-              { kind: 'line', speaker: 'НИКА', text: 'Значит, двери открывать умеешь. Уже неплохо.', duration: 2.8 },
-            ],
-          },
-          {
-            id: 'lost',
-            text: 'Я сам не знаю, кто я.',
-            followUp: [
-              { kind: 'line', speaker: 'ЛЕВ', text: 'Я сам не знаю, кто я.', duration: 2.1 },
-              { kind: 'line', speaker: 'НИКА', text: 'Отлично. Тогда нас уже двое.', duration: 2.8 },
-            ],
-          },
-        ],
-        silence: {
-          id: 'silence',
-          text: '',
-          followUp: [
-            { kind: 'line', speaker: 'НИКА', text: 'Ладно. Можешь не отвечать.', duration: 2.5 },
-          ],
-        },
-        onSelect: (choice) => {
-          rememberChoice('nikaRole', choice);
-          if (choice === 'lost') rememberResponse('vulnerable');
-          else if (choice === 'silence') rememberResponse('silent');
-          else rememberResponse('direct');
-        },
-      },
-      { kind: 'line', speaker: 'НИКА', text: 'Только не отключайся, ладно?', duration: 2.7 },
-    ], () => {
+    dialogue.play(warehouseStory(choice => {
+      rememberChoice('signalApproach', choice);
+      rememberResponse(choice === 'silent' ? 'silent' : 'direct');
+      persist(false);
+    }), () => {
       warehouseConversationActive = false;
       storyState.progress.warehouseContacted = true;
-      hud.setObjective('ВОССТАНОВИТЬ ПИТАНИЕ МОСТА');
+      syncObjective();
       persist(true);
     });
   },
@@ -474,21 +440,19 @@ interactions.add({
   action: () => {
     storyState.progress.bridgeStarted = true;
     world.startBridge();
-    hud.setObjective('ДОЙТИ ДО ШКОЛЫ');
+    syncObjective();
     persist(true);
     dialogue.play([
-      { kind: 'line', speaker: 'МАРА', text: 'Путь открыт.', duration: 2 },
-      { kind: 'line', speaker: 'ЛЕВ', text: 'Я возвращаюсь за ней.', duration: 2.2 },
-      { kind: 'line', speaker: 'МАРА', text: 'За кем?', duration: 1.8 },
-      { kind: 'line', speaker: 'ЛЕВ', text: 'Никой.', duration: 1.8 },
-      { kind: 'line', speaker: 'МАРА', text: 'Лев...', duration: 2.5 },
+      line('МАРА', 'Мост опускается. Дождись, пока настил встанет на место.'),
+      line('СОЙКА', 'На другом берегу слышен колокол. Источник не подключён к электричеству.'),
+      line('ЛЕВ', 'Тогда узнаем, что заставляет его звучать.'),
     ]);
   },
 });
 
 interactions.add({
   id: 'school-reconstruction-node',
-  label: 'СОЙКА — ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ',
+  label: 'СОЙКА — НАСТРОИТЬСЯ НА ЧАСТОТУ',
   position: school.reconstructionNode,
   radius: 3.1,
   enabled: () => storyState.progress.bridgeStarted
@@ -498,32 +462,45 @@ interactions.add({
   action: () => {
     if (!school.start()) return;
     storyState.progress.schoolReconstructionStarted = true;
-    hud.setObjective('ИССЛЕДОВАТЬ РЕКОНСТРУКЦИЮ');
+    syncObjective();
     persist(true);
   },
 });
 
 interactions.add({
   id: 'bridge-archive-terminal',
-  label: '▣ АРХИВНЫЙ ТЕРМИНАЛ — ПРОВЕРИТЬ',
+  label: '▣ МОСТОВОЙ РЕТРАНСЛЯТОР',
   position: archiveTerminal.interactionPosition,
   radius: 2.7,
   enabled: () => storyState.progress.schoolReconstructionCompleted
     && !storyState.progress.bridgeArchiveTerminalSeen
     && !dialogue.isBusy,
   action: () => {
-    archiveTerminal.showIdentityMatch();
-    hud.setObjective('СОВПАДЕНИЕ ЛИЧНОСТИ: LEV ARDEN');
-    dialogue.play([
-      { kind: 'line', speaker: 'ЛЕВ', text: 'Мара. Какая сегодня дата?', duration: 2.8 },
-      { kind: 'line', speaker: 'СВЯЗЬ', text: '— — —', duration: 1.5 },
-      { kind: 'line', speaker: 'НИКА', text: '…пап?', duration: 2.1 },
-    ], () => {
-      storyState.progress.bridgeArchiveTerminalSeen = true;
-      hud.setObjective('ВЕРТИКАЛЬНЫЙ СРЕЗ ЗАВЕРШЁН');
+    archiveTerminal.showSignalMatch();
+    dialogue.play(endingStory(storyState, choice => {
+      if (!commitEnding(storyState, choice)) return;
+      mysteryAtmosphere.setEnding(choice);
+      archiveTerminal.showOutcome(choice);
+      hud.setClock(choice === 'seal' ? '22:48' : '22:47');
+      audioSystem.playMysteryCue(choice === 'seal' ? 'seal' : 'answer');
       persist(true);
+    }), () => {
+      syncObjective();
       sliceEnded = true;
-      sliceEnding.show();
+      input.setEnabled(false);
+      hud.setPaused(true);
+      dialogue.setPaused(true);
+      sliceEnding.show(storyState.choices.tideEnding === 'transmit' ? 'transmit' : 'seal',
+        storyState.schoolEchoesHeard.length, () => {
+          sliceEnded = false;
+          dialogue.setPaused(false);
+          hud.setPaused(false);
+          input.setEnabled(true);
+          renderer.domElement.focus({ preventScroll: true });
+          audioSystem.resumeFromEnding();
+          renderRequested = true;
+          hud.notify('Можно продолжить исследование порта. Записи и выбор сохранены.', 6000);
+        });
     });
   },
 });
@@ -533,7 +510,7 @@ hud.onEnergyToggle = (system) => {
   if (system === 'bridge' && !energy.isActive('bridge')
     && !storyState.progress.warehouseContacted && !storyState.progress.bridgeStarted) {
     hud.closeEnergy();
-    dialogue.say('МАРА', 'Сначала проверь радиосигнал на Складе 04. Там может быть кто-то живой.');
+    dialogue.say('МАРА', 'Сначала проследи сигнал на Складе 04. Тогда поймём, какую линию нужно отсечь.');
     syncObjective();
     return;
   }
@@ -559,7 +536,7 @@ energy.onChange = (system, enabled) => {
   }
   if (system === 'warehouse' && enabled && !storyState.progress.warehouseContacted) {
     hud.closeEnergy();
-    dialogue.say('МАРА', 'На Складе 04 появился слабый радиосигнал.');
+    dialogue.say('МАРА', 'Канал склада открыт. Приёмник справа от распределителя уже отвечает.');
   } else if (system === 'bridge' && enabled) {
     hud.closeEnergy();
     dialogue.say('МАРА', 'Мост получает питание. Доберись до привода.');
@@ -572,14 +549,25 @@ energy.onChange = (system, enabled) => {
 hud.soykaButton.addEventListener('click', () => {
   if (paused || sliceEnded || farewell.active) return;
   const progress = storyState.progress;
+  if (progress.bridgeArchiveTerminalSeen) {
+    const remaining = HARBOR_DISCOVERIES.find(item => !storyState.choices[`harbor:${item.id}`])
+      ?? SCHOOL_CLUES.find(item => !storyState.schoolEchoesHeard.includes(item.id));
+    if (remaining) {
+      soyka.signal(new THREE.Vector3(remaining.x, 0, remaining.z));
+      hud.notify(`${remaining.title} · ${Math.round(Math.hypot(remaining.x - player.position.x, remaining.z - player.position.z))} м`, 6000);
+    } else hud.notify('Все записи найдены. Их можно перечитать в журнале расследования.', 6000);
+    return;
+  }
   if (progress.schoolReconstructionStarted && !progress.schoolReconstructionCompleted) {
-    soyka.signal();
-    dialogue.say('СОЙКА', 'Голоса в коридоре. Подойди ближе к вещам — я удержу фрагменты.', 4.5);
+    soyka.signal(school.nextCluePosition);
+    const target = school.nextCluePosition;
+    hud.notify(`Отметка смотрителя · ${Math.round(target.distanceTo(player.position))} м`, 5000);
+    dialogue.say('СОЙКА', school.heardEchoCount >= 3 ? 'К концу коридора. Там проступил дверной проём.' : 'Отметка на стене. Подойди ближе и дослушай запись. Кнопкой «Далее» можно подтвердить прочтение.', 6);
     return;
   }
   const [label, target] = !progress.lighthousePowered ? ['Аварийный щит', world.landmarks.lighthousePanel] as const
-    : progress.schoolReconstructionCompleted ? ['Архивный терминал', archiveTerminal.interactionPosition] as const
-      : progress.schoolEntered ? ['Архивный узел', school.reconstructionNode] as const
+    : progress.schoolReconstructionCompleted ? ['Мостовой ретранслятор', archiveTerminal.interactionPosition] as const
+      : progress.schoolEntered ? ['Приёмный узел школы', school.reconstructionNode] as const
         : progress.bridgeStarted ? ['Школа', school.entrance] as const
           : progress.warehouseContacted && energy.isActive('bridge') ? ['Привод моста', world.landmarks.bridgeStart] as const
             : energy.isActive('warehouse') && !progress.warehouseContacted ? ['Склад 04', world.landmarks.warehouse04] as const
@@ -594,80 +582,21 @@ hud.soykaButton.addEventListener('click', () => {
 });
 
 if (!loadedState) {
-  dialogue.play([
-    { kind: 'line', speaker: 'МАРА', text: 'Лев?', duration: 1.8 },
-    { kind: 'line', speaker: 'МАРА', text: 'Лев, если ты меня слышишь, скажи что-нибудь.', duration: 3.2 },
-    {
-      kind: 'choice',
-      timeout: 5,
-      options: [
-        {
-          id: 'heard',
-          text: 'Я слышу.',
-          followUp: [
-            { kind: 'line', speaker: 'ЛЕВ', text: 'Я слышу.', duration: 1.5 },
-            { kind: 'line', speaker: 'МАРА', text: 'Хорошо. Значит, хотя бы связь работает.', duration: 2.8 },
-          ],
-        },
-      ],
-      silence: {
-        id: 'silence',
-        text: '',
-        followUp: [
-          { kind: 'line', speaker: 'МАРА', text: 'Ладно. Тогда просто слушай.', duration: 2.4 },
-        ],
-      },
-      onSelect: (choice) => {
-        rememberChoice('introConnection', choice);
-        rememberResponse(choice === 'silence' ? 'silent' : 'direct');
-        persist(false);
-      },
-    },
-    { kind: 'line', speaker: 'МАРА', text: 'Ты внутри северного маяка. Что ты помнишь?', duration: 3.3 },
-    {
-      kind: 'choice',
-      timeout: 6,
-      options: [
-        {
-          id: 'lighthouse',
-          text: 'Маяк.',
-          followUp: [{ kind: 'line', speaker: 'ЛЕВ', text: 'Маяк.', duration: 1.5 }],
-        },
-        {
-          id: 'mara',
-          text: 'Тебя.',
-          followUp: [
-            { kind: 'line', speaker: 'ЛЕВ', text: 'Тебя.', duration: 1.5 },
-            { kind: 'line', speaker: 'МАРА', text: 'Хорошо.', duration: 2.2 },
-          ],
-        },
-        {
-          id: 'nothing',
-          text: 'Почти ничего.',
-          followUp: [{ kind: 'line', speaker: 'ЛЕВ', text: 'Почти ничего.', duration: 1.8 }],
-        },
-      ],
-      silence: {
-        id: 'silence',
-        text: '',
-        followUp: [{ kind: 'line', speaker: 'МАРА', text: 'Не дави на себя. Сначала выберемся отсюда.', duration: 2.8 }],
-      },
-      onSelect: (choice) => {
-        rememberChoice('introMemory', choice);
-        if (choice === 'nothing') rememberResponse('vulnerable');
-        else if (choice === 'silence') rememberResponse('silent');
-        else rememberResponse('direct');
-        persist(true);
-      },
-    },
-    { kind: 'line', speaker: 'МАРА', text: 'Основное питание отключено. Найди аварийный щит.', duration: 3 },
-  ]);
+  dialogue.play(openingStory(choice => {
+    rememberChoice('tideOpening', choice);
+    rememberResponse(choice === 'listen' ? 'vulnerable' : 'direct');
+    persist(true);
+  }));
 }
 
 input.setEnabled(false);
 hud.setPaused(true);
+dialogue.setPaused(true);
 new OpeningScreen(app, Boolean(loadedState), () => {
   journeyStarted = true;
+  dialogue.setPaused(false);
+  if (saves.updatedStory && loadedState) dialogue.say('МАРА', chapterRecap(storyState), 11);
+  hud.setClock(storyState.choices.tideEnding === 'seal' ? '22:48' : '22:47');
   setCameraMode(settings.cameraMode, false);
   hud.setPaused(false);
   input.setEnabled(true);
@@ -726,7 +655,9 @@ function animate() {
       && player.position.z > -3 && !storyState.choices.harborArrival && !dialogue.isBusy) {
       rememberChoice('harborArrival', 'seen');
       hud.notify('СЕВЕРНЫЙ ПОРТ · Приливная набережная', 6000);
-      dialogue.say('МАРА', 'Распределитель впереди. Можно осмотреть причалы — только держись подальше от течения.', 6);
+      dialogue.say('МАРА', 'Слышишь колокол? Его сняли с башни до закрытия порта. Осмотри записи смотрителя на причалах — он оставлял нам отметки.', 8);
+      audioSystem.playMysteryCue('bell');
+      mysteryAtmosphere.pulse('arrival');
       persist(false);
     }
 
@@ -736,13 +667,13 @@ function animate() {
       && canEnterSchool(player.position, player.grounded, world.isBridgeReady)
     ) {
       storyState.progress.schoolEntered = true;
-      hud.setObjective('ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ');
+      syncObjective();
       persist(true);
       if (!dialogue.isBusy) {
         dialogue.play([
-          { kind: 'line', speaker: 'НИКА', text: 'Школа?..', duration: 1.8 },
-          { kind: 'line', speaker: 'МАРА', text: 'Старая городская школа. Здесь ещё жив архивный узел.', duration: 3.1 },
-          { kind: 'line', speaker: 'СОЙКА', text: 'Могу попробовать восстановить.', duration: 2.4 },
+          line('СОЙКА', 'Восемь ударов. Колокол на фасаде не двигается.'),
+          line('МАРА', 'Приёмный узел в коридоре. Настрой Сойку на эту частоту.'),
+          line('ЛЕВ', 'На полу сухие следы. Всё вокруг мокрое.'),
         ]);
       }
     }
@@ -760,6 +691,8 @@ function animate() {
     world.update(dt);
     visualFoundation.update(dt, player.position);
     harbor.update(dt);
+    mysteryAtmosphere.update(dt, player.position);
+    audioSystem.setListenerYaw(yaw);
 
     autosaveElapsed += dt;
     if (autosaveElapsed >= 5) {
@@ -767,7 +700,7 @@ function animate() {
       persist(false);
     }
 
-    if (cameraMode === 'first') firstPersonCamera.update(player.position, yaw, pitch, dt, player.isMoving, player.grounded, settings.headMotion);
+    if (cameraMode === 'first') firstPersonCamera.update(player.position, yaw, pitch, dt, player.isMoving, player.grounded, settings.headMotion, player.movementPace);
     else cameraController.update(player.position, yaw, pitch, dt);
   }
 
@@ -776,7 +709,7 @@ function animate() {
     harbor.update(dt);
   }
   // Paused geometry is static. Redraw only for a resize or an explicit settings change.
-  if (!paused || renderRequested) {
+  if ((!paused && !sliceEnded) || renderRequested) {
     renderer.render(world.scene, camera);
     renderRequested = false;
   }

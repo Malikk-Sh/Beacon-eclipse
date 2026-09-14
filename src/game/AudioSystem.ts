@@ -30,6 +30,10 @@ export class AudioSystem {
   private creakTimer = 5 + Math.random() * 5;
   private hornTimer = 12;
   private moving = false;
+  private movementSpeed = 0;
+  private bellCount = 0;
+  private bellTimer = 0;
+  private listenerYaw = 0;
   private bridgeStarted = false;
   private readonly playerPosition = new THREE.Vector3();
   private readonly soykaPosition = new THREE.Vector3();
@@ -92,9 +96,10 @@ export class AudioSystem {
       this.paused || this.fadingOut ? 0 : this.voiceVolume * 0.65, this.context.currentTime, 0.015);
   }
 
-  setPlayerState(position: THREE.Vector3, moving: boolean): void {
+  setPlayerState(position: THREE.Vector3, moving: boolean, speed = 2.8): void {
     this.playerPosition.copy(position);
     this.moving = moving;
+    this.movementSpeed = speed;
   }
 
   setSoykaPosition(position: THREE.Vector3): void {
@@ -107,6 +112,47 @@ export class AudioSystem {
 
   setBridgeStarted(started: boolean): void {
     this.bridgeStarted = started;
+  }
+
+  setListenerYaw(yaw: number): void { this.listenerYaw = yaw; }
+
+  resumeFromEnding(): void {
+    this.fadingOut = false;
+    this.paused = false;
+    if (this.context && this.master) this.master.gain.cancelScheduledValues(this.context.currentTime);
+    this.applyMasterLevel(0.6);
+    this.applyVoiceLevel();
+  }
+
+  playMysteryCue(kind: 'bell' | 'clue' | 'cutoff' | 'seal' | 'answer'): void {
+    if (kind === 'bell') { this.bellCount = 8; this.bellTimer = 0; return; }
+    const frequencies = kind === 'clue' ? [523, 659] : kind === 'seal' ? [130.8, 196.2, 261.6]
+      : kind === 'answer' ? [73.4, 110.1, 155.6] : [164, 161.5];
+    this.resonance(frequencies, kind === 'clue' ? 0.65 : 3.4, kind === 'clue' ? 0.015 : 0.032,
+      kind === 'answer' ? new THREE.Vector3(40, 0, -65) : this.playerPosition);
+  }
+
+  private resonance(frequencies: number[], duration: number, level: number, position: THREE.Vector3): void {
+    const context = this.context;
+    if (!context || !this.master || context.state !== 'running' || this.paused) return;
+    const panner = this.createPanner(context, position, 12, 180, 0.7);
+    panner.connect(this.master);
+    let remaining = frequencies.length;
+    frequencies.forEach((frequency, i) => {
+      const oscillator = context.createOscillator(), envelope = context.createGain();
+      const now = context.currentTime;
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(frequency, now);
+      envelope.gain.setValueAtTime(0, now);
+      envelope.gain.linearRampToValueAtTime(level / (1 + i * 0.7), now + 0.035);
+      envelope.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      oscillator.connect(envelope).connect(panner);
+      oscillator.onended = () => {
+        oscillator.disconnect(); envelope.disconnect();
+        if (--remaining === 0) panner.disconnect();
+      };
+      oscillator.start(now); oscillator.stop(now + duration + 0.05);
+    });
   }
 
   fadeOut(seconds = 1.4): void {
@@ -156,10 +202,24 @@ export class AudioSystem {
 
   update(dt: number): void {
     const context = this.context;
-    if (!context || context.state !== 'running') return;
+    if (!context || context.state !== 'running' || this.paused || this.fadingOut) return;
 
     const now = context.currentTime;
     this.setListenerPosition(context.listener, this.playerPosition, now);
+    const listener = context.listener;
+    if (listener.forwardX) {
+      listener.forwardX.setValueAtTime(-Math.sin(this.listenerYaw), now);
+      listener.forwardY.setValueAtTime(0, now);
+      listener.forwardZ.setValueAtTime(-Math.cos(this.listenerYaw), now);
+      listener.upX.setValueAtTime(0, now); listener.upY.setValueAtTime(1, now); listener.upZ.setValueAtTime(0, now);
+    } else listener.setOrientation(-Math.sin(this.listenerYaw), 0, -Math.cos(this.listenerYaw), 0, 1, 0);
+    if (this.bellCount > 0) {
+      this.bellTimer -= dt;
+      if (this.bellTimer <= 0) {
+        this.resonance([174.6, 351.8, 469.7], 3.2, 0.048, new THREE.Vector3(-3.2, 3, -60));
+        this.bellCount--; this.bellTimer = 1.2;
+      }
+    }
     this.setPannerPosition(this.motorPanner, this.soykaPosition, now);
 
     const schoolBlend = THREE.MathUtils.clamp((-this.playerPosition.z - 54) / 12, 0, 1);
@@ -195,7 +255,7 @@ export class AudioSystem {
       this.footstepTimer -= dt;
       if (this.footstepTimer <= 0) {
         this.playFootstep();
-        this.footstepTimer = 0.42 + Math.random() * 0.08;
+        this.footstepTimer = THREE.MathUtils.lerp(0.82, 0.49, Math.min(1, this.movementSpeed / 2.8));
       }
     } else {
       this.footstepTimer = Math.min(this.footstepTimer, 0.08);
@@ -454,7 +514,7 @@ export class AudioSystem {
     const context = this.context;
     const master = this.master;
     if (!context || !master || this.fadingOut) return;
-    const target = this.paused ? 0.018 : this.volume * 0.58;
+    const target = this.paused ? this.volume * 0.012 : this.volume * 0.58;
     master.gain.setTargetAtTime(target, context.currentTime, timeConstant);
   }
 

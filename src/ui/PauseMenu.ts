@@ -11,6 +11,8 @@ export class PauseMenu {
   readonly sfxRange: HTMLInputElement;
   readonly cameraSelect: HTMLSelectElement;
   readonly motionToggle: HTMLInputElement;
+  readonly fovRange: HTMLInputElement;
+  readonly fovValue: HTMLElement;
 
   private readonly overlay: HTMLElement;
   private readonly fullscreenState: HTMLElement;
@@ -26,13 +28,16 @@ export class PauseMenu {
     this.overlay.innerHTML = `
       <section class="settings-card">
         <header class="settings-header">
-          <small>ГЛАВА I · СЕВЕРНЫЙ ПОРТ</small>
-          <h2>ШТОРМ ПОДОЖДЁТ</h2>
+          <small>ГЛАВА I · НУЛЕВОЙ ПРИЛИВ</small>
+          <h2>МЕЖДУ УДАРАМИ</h2>
           <p>Твоя история остаётся здесь. Диалоги и выборы приостановлены.</p>
         </header>
         <div class="settings-list">
           <label class="settings-row settings-quality" for="cameraSelect"><span>ПЕРСПЕКТИВА</span>
             <select id="cameraSelect"><option value="third">ОТ ТРЕТЬЕГО ЛИЦА</option><option value="first">ОТ ПЕРВОГО ЛИЦА</option></select>
+          </label>
+          <label class="settings-row settings-volume" for="fieldOfView"><span>УГОЛ ОБЗОРА · FOV</span>
+            <span class="settings-volume-control"><input id="fieldOfView" type="range" min="50" max="90" step="1" aria-label="Угол обзора"><b id="fieldOfViewValue">68°</b></span>
           </label>
           <label class="settings-row" for="headMotion"><span>ДВИЖЕНИЕ КАМЕРЫ ПРИ ХОДЬБЕ</span><input id="headMotion" type="checkbox"></label>
           <button type="button" class="settings-row" id="fullscreenToggle">
@@ -58,8 +63,8 @@ export class PauseMenu {
             <span class="settings-volume-control"><input id="voiceVolume" type="range" min="0" max="100" step="5" aria-label="Голосовые звуки"><b id="voiceVolumeValue">65%</b></span>
           </label>
         </div>
-        <details class="field-journal"><summary>ЗАПИСИ ПОРТА <span id="journalCount"></span></summary><div id="journalEntries"></div></details>
-        <p class="settings-help">WASD — движение · Пробел — прыжок · E — действие · V — сменить вид<br>От первого лица: клик по сцене — свободный осмотр, Esc — пауза.<br>Голосовые звуки имитируют речь; текст диалогов остаётся доступен.</p>
+        <details class="field-journal"><summary>ЖУРНАЛ РАССЛЕДОВАНИЯ <span id="journalCount"></span></summary><div id="journalEntries"></div></details>
+        <p class="settings-help">WASD — движение · Пробел — прыжок · E — действие · V — сменить вид<br>FOV сохраняется отдельно для каждого вида. Движение камеры можно отключить.<br>От первого лица: клик по сцене — осмотр, Esc — пауза. Enter — следующая реплика.<br>Голосовые звуки имитируют речь; текст диалогов остаётся доступен.</p>
         <button type="button" class="settings-row" id="recoverPosition">ВЕРНУТЬСЯ НА БЕЗОПАСНОЕ МЕСТО</button>
         <footer class="settings-actions">
           <button type="button" class="settings-primary" id="continueGame">ПРОДОЛЖИТЬ</button>
@@ -79,6 +84,8 @@ export class PauseMenu {
     this.sfxValue = this.require('#sfxVolumeValue');
     this.cameraSelect = this.require<HTMLSelectElement>('#cameraSelect');
     this.motionToggle = this.require<HTMLInputElement>('#headMotion');
+    this.fovRange = this.require<HTMLInputElement>('#fieldOfView');
+    this.fovValue = this.require('#fieldOfViewValue');
     const settings = this.settingsStore.load();
     this.cameraSelect.value = settings.cameraMode;
     this.motionToggle.checked = settings.headMotion;

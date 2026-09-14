@@ -9,6 +9,8 @@ interface DialogueChoiceView {
 
 export class Hud {
   onEnergyToggle?: (system: EnergySystemName) => void;
+  onDialogueAdvance?: () => void;
+  onEnergyClose?: () => void;
   readonly joystick: HTMLElement;
   readonly stick: HTMLElement;
   readonly interactButton: HTMLButtonElement;
@@ -35,8 +37,8 @@ export class Hud {
       <div id="game"></div>
       <div class="hud">
         <button class="pause" aria-label="Пауза">${icon('pause')}</button>
-        <div class="weather">${icon('rain')}<span>22:47<small>ШТОРМ · 9°C</small></span></div>
-        <div class="objective" id="objective"><span class="objective-mark">${icon('power')}</span><div><small>ГЛАВА I / ПОСЛЕДНИЙ СИГНАЛ</small><b>НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ</b></div></div>
+        <div class="weather">${icon('rain')}<span><span id="worldClock">22:47</span><small>ШТОРМ · 9°C</small></span></div>
+        <div class="objective" id="objective"><span class="objective-mark">${icon('power')}</span><div><small>ГЛАВА I / НУЛЕВОЙ ПРИЛИВ</small><b>НАЙТИ АВАРИЙНЫЙ РАСПРЕДЕЛИТЕЛЬ</b></div></div>
         <div class="heading-strip" aria-hidden="true"><span>N</span><i></i><span id="headingValue">000°</span><i></i><span>СЕВЕРНЫЙ ПОРТ</span></div>
         <button class="camera-button" id="cameraButton" aria-label="Сменить вид (V)" aria-pressed="false">${icon('camera')}<span id="cameraModeLabel">III</span><kbd>V</kbd></button>
         <div class="aim-reticle hidden" id="aimReticle" aria-hidden="true"></div>
@@ -54,6 +56,7 @@ export class Hud {
             <span class="voice-meter" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
             <b class="dialogue-speaker" id="dialogueSpeaker">МАРА</b>
             <span class="dialogue-text" id="dialogueText">Лев? Если слышишь меня — найди аварийный щит.</span>
+            <button type="button" class="dialogue-next" id="dialogueNext" aria-label="Следующая реплика">ДАЛЕЕ <span aria-hidden="true">↵</span></button>
           </div>
         </div>
       </div>
@@ -84,6 +87,9 @@ export class Hud {
     this.energyAvailable = this.require('#energyAvailable');
     this.objective = this.require('#objective b');
     this.saveIndicator = this.require('#saveIndicator');
+    this.require('#dialogueNext').addEventListener('click', () => {
+      if (!this.root.classList.contains('is-paused')) this.onDialogueAdvance?.();
+    });
 
     const systems = this.require('#energySystems');
     for (const definition of energy.definitions) {
@@ -125,6 +131,7 @@ export class Hud {
   }
 
   showDialogue(speaker: string, text: string) {
+    this.require('#dialogueNext').classList.remove('hidden');
     this.dialogueShell.classList.remove('hidden');
     this.dialogueSpeaker.textContent = speaker;
     this.dialogueSpeaker.classList.toggle('hidden', speaker.length === 0);
@@ -136,6 +143,7 @@ export class Hud {
   }
 
   showDialogueChoices(choices: DialogueChoiceView[], onSelect: (id: string) => void) {
+    this.require('#dialogueNext').classList.add('hidden');
     this.dialogueShell.classList.remove('hidden');
     this.dialogueChoices.replaceChildren();
     choices.forEach((choice, index) => {
@@ -156,12 +164,15 @@ export class Hud {
   }
 
   setChoiceProgress(progress: number) {
+    this.choiceTimer.classList.toggle('hidden', progress < 0);
     this.choiceTimerFill.style.transform = `scaleX(${Math.max(0, Math.min(1, progress))})`;
   }
 
   setObjective(text: string) {
     this.objective.textContent = text;
   }
+
+  setClock(time: string): void { this.require('#worldClock').textContent = time; }
 
   setCameraMode(mode: CameraMode): void {
     this.root.dataset.camera = mode;
@@ -204,6 +215,7 @@ export class Hud {
 
   closeEnergy() {
     this.energyPanel.classList.add('hidden');
+    this.onEnergyClose?.();
   }
 
   refreshEnergy() {

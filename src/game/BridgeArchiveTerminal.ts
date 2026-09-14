@@ -49,7 +49,7 @@ export class BridgeArchiveTerminal {
     root.add(screenHousing);
 
     this.screenMaterial = new THREE.MeshBasicMaterial({
-      map: this.createScreenTexture('ARCHIVE RELAY', ['LINK OFFLINE'], '#6b7b83'),
+      map: this.createScreenTexture('TIDAL RELAY / 07', ['LINK OFFLINE'], '#6b7b83'),
       toneMapped: false,
     });
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.92, 0.52), this.screenMaterial);
@@ -76,22 +76,28 @@ export class BridgeArchiveTerminal {
     if (this.available === available) return;
     this.available = available;
     if (!available) {
-      this.setScreen('ARCHIVE RELAY', ['LINK OFFLINE'], '#6b7b83');
+      this.setScreen('TIDAL RELAY / 07', ['LINK OFFLINE'], '#6b7b83');
       this.statusMaterial.emissive.setHex(0x000000);
       this.statusMaterial.emissiveIntensity = 0;
       return;
     }
 
-    this.setScreen('ARCHIVE RELAY', ['RECORD FOUND', 'ACCESS READY'], '#d8a866');
+    this.setScreen('TIDAL RELAY / 07', ['RETURN SIGNAL', 'LOOP / OPEN SEA'], '#d8a866');
     this.statusMaterial.emissive.setHex(0xd78134);
     this.statusMaterial.emissiveIntensity = 2.2;
   }
 
-  showIdentityMatch(): void {
+  showSignalMatch(): void {
     this.available = true;
-    this.setScreen('IDENTITY MATCH', ['LEV ARDEN', 'ARCHIVE: 17 YEARS AGO'], '#efd8a3');
+    this.setScreen('REPLY PRECEDES CALL', ['OFFSET: -17 SEC', 'ORIGIN: BELOW SEA'], '#efd8a3');
     this.statusMaterial.emissive.setHex(0x73c9e8);
     this.statusMaterial.emissiveIntensity = 3.1;
+  }
+
+  showOutcome(choice: 'seal' | 'transmit'): void {
+    this.available = true;
+    this.setScreen(choice === 'seal' ? 'CIRCUIT CLOSED' : 'CHANNEL OPEN',
+      choice === 'seal' ? ['TIME: 22:48', 'RETURN TO SOURCE'] : ['TIME: 22:47', 'SOURCE LISTENING'], '#d7debd');
   }
 
   private setScreen(title: string, lines: string[], accent: string): void {
@@ -106,7 +112,7 @@ export class BridgeArchiveTerminal {
     canvas.width = 512;
     canvas.height = 256;
     const context = canvas.getContext('2d');
-    if (!context) throw new Error('Could not create archive terminal canvas');
+    if (!context) return new THREE.CanvasTexture(canvas);
 
     context.fillStyle = '#071014';
     context.fillRect(0, 0, canvas.width, canvas.height);
@@ -120,7 +126,7 @@ export class BridgeArchiveTerminal {
 
     context.fillStyle = accent;
     context.font = '700 31px monospace';
-    context.fillText(title, 36, 66);
+    context.fillText(title, 36, 66, 440);
 
     context.font = '600 24px monospace';
     lines.forEach((line, index) => {
@@ -129,7 +135,7 @@ export class BridgeArchiveTerminal {
 
     context.fillStyle = '#52646b';
     context.font = '500 15px monospace';
-    context.fillText('MUNICIPAL ARCHIVE // BRIDGE RELAY 07', 36, 224);
+    context.fillText('NORTH LIGHT // RETURN CIRCUIT 07', 36, 224);
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
