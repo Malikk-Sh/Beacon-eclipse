@@ -9,6 +9,8 @@ export interface SettingsState {
   cameraMode: CameraMode;
   voiceVolume: number;
   headMotion: boolean;
+  fieldOfView: number;
+  thirdPersonFieldOfView: number;
 }
 
 const SETTINGS_KEY = 'beacon-eclipse.settings.v1';
@@ -21,6 +23,8 @@ const DEFAULT_SETTINGS: SettingsState = {
   cameraMode: 'third',
   voiceVolume: 0.65,
   headMotion: true,
+  fieldOfView: 68,
+  thirdPersonFieldOfView: 55,
 };
 
 let cachedSettings: SettingsState | null = null;
@@ -33,6 +37,10 @@ function boundedNumber(value: unknown, fallback: number, min: number, max: numbe
   return typeof value === 'number' && Number.isFinite(value)
     ? Math.min(max, Math.max(min, value))
     : fallback;
+}
+
+export function fieldOfView(value: unknown, fallback = 68): number {
+  return boundedNumber(value, fallback, 50, 90);
 }
 
 export class SettingsStore {
@@ -54,6 +62,8 @@ export class SettingsStore {
         cameraMode: parsed.cameraMode === 'first' ? 'first' : 'third',
         voiceVolume: boundedNumber(parsed.voiceVolume, DEFAULT_SETTINGS.voiceVolume, 0, 1),
         headMotion: typeof parsed.headMotion === 'boolean' ? parsed.headMotion : true,
+        fieldOfView: fieldOfView(parsed.fieldOfView),
+        thirdPersonFieldOfView: fieldOfView(parsed.thirdPersonFieldOfView, 55),
       };
       return cachedSettings;
     } catch {

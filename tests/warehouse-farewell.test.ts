@@ -51,19 +51,19 @@ function scene(t: TestContext) {
     for (let elapsed = 0; elapsed < seconds; elapsed += 0.02) dialogue.update(0.02);
   }
   function reply(key?: string) {
-    tick(8.1);
-    assert.equal(window.document.querySelectorAll('.dialogue-choices button').length, 2);
+    for (let i = 0; i < 100 && !dialogue.isChoosing; i++) tick(0.5);
+    assert.equal(window.document.querySelectorAll('.dialogue-choices button').length, 3);
     if (key) window.dispatchEvent(new window.KeyboardEvent('keydown', { key }));
-    else tick(5.6);
-    tick(4.1);
+    else window.dispatchEvent(new window.KeyboardEvent('keydown', { key: '3' }));
+    tick(8);
   }
   return { window, story, energy, switches, saves, callbacks, hud, dialogue, farewell, tick, reply, ready: () => ready };
 }
 
 for (const [key, choice, profile] of [
-  ['1', 'promise', 'direct'], ['2', 'honest', 'vulnerable'], [undefined, 'silence', 'silent'],
+  ['1', 'acknowledge', 'direct'], ['2', 'listen', 'vulnerable'], [undefined, 'silence', 'silent'],
 ] as const) {
-  test(`${choice}: answer/timeout keeps the radio powered; explicit cutoff commits once`, (t) => {
+  test(`${choice}: explicit reply keeps the radio powered; explicit cutoff commits once`, (t) => {
     const s = scene(t);
     assert.equal(s.farewell.begin(), true);
     assert.equal(s.farewell.begin(), false);
@@ -72,7 +72,7 @@ for (const [key, choice, profile] of [
     assert.equal(s.ready(), 1);
     assert.deepEqual(s.story.energy, ['warehouse']);
     assert.deepEqual(s.switches, []);
-    assert.equal(s.story.choices.nikaPromise, choice);
+    assert.equal(s.story.choices.channelRule, choice);
     assert.equal(s.story.responseProfile[profile], 1);
     assert.equal(s.story.progress.warehouseFarewellPlayed, false);
     assert.equal(s.saves.load()!.progress.warehouseFarewellPlayed, false);

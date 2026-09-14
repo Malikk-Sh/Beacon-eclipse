@@ -1,5 +1,7 @@
 # Immersion and close-range visual pass
 
+Historical PR #45 notes. The current first-person body visibility, FOV, movement, story and CI are described in [mystery-tide.md](mystery-tide.md) and [mobile-e2e.md](mobile-e2e.md).
+
 Built on main `acc0740`, including PR #43's mobile CI and PR #44's traversal/save recovery.
 
 ## Camera and companion

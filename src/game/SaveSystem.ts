@@ -5,9 +5,11 @@ const SAVE_KEY = 'beacon-eclipse.save.v1';
 
 export class SaveSystem {
   repairedPosition = false;
+  updatedStory = false;
 
   load(): StoryState | null {
     this.repairedPosition = false;
+    this.updatedStory = false;
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return null;
@@ -26,6 +28,13 @@ export class SaveSystem {
         choices: { ...defaults.choices, ...parsed.choices },
         energy: parsed.energy,
       } as StoryState;
+      this.updatedStory = parsed.narrativeRevision !== 2;
+      state.narrativeRevision = 2;
+      // Preserve routes, discoveries and old choices. Only the revised final decision is new.
+      if (this.updatedStory && state.progress.bridgeArchiveTerminalSeen && !state.choices.tideEnding) {
+        state.choices['legacy:archiveSeen'] = 'true';
+        state.progress.bridgeArchiveTerminalSeen = false;
+      }
       if (!finitePosition(state.player.position) || !inPlayableArea(state.player.position, state.progress.bridgeStarted)) {
         state.player.position = stageCheckpoint(state.progress);
         this.repairedPosition = true;

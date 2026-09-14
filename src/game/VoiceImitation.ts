@@ -12,7 +12,7 @@ const FORMANTS = [[760, 1200], [450, 850], [330, 650], [400, 1450], [550, 1800],
 /** Speech-shaped rhythms, not spoken words. Punctuation leaves audible breathing spaces. */
 export function speechBeats(speaker: string, text: string, duration: number): SpeechBeat[] {
   const pitch = speaker.includes('СОЙКА') ? 310 : speaker.includes('НИКА') ? 238
-    : speaker.includes('МАРА') ? 182 : speaker.includes('ЛЕВ') ? 114 : 155;
+    : speaker.includes('МАРА') ? 182 : /ЛЕВ|ЛЬВА/.test(speaker) ? 114 : 155;
   const tokens: { weight: number; vowel: number; seed: number }[] = [];
   let units = 0;
   for (const character of text.toLowerCase()) {

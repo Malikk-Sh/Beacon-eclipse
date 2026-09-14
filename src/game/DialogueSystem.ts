@@ -30,9 +30,20 @@ export class DialogueSystem {
   private current: DialogueStep | null = null;
   private elapsed = 0;
   private onComplete: (() => void) | null = null;
+  private paused = false;
 
   constructor(private readonly hud: Hud, private readonly voice?: DialogueVoice) {
+    this.hud.onDialogueAdvance = () => this.nextLine();
     window.addEventListener('keydown', (event) => {
+      if (this.paused) return;
+      const target = event.target as HTMLElement | null;
+      if (event.repeat || target?.closest?.('input, select, textarea')) return;
+      if (event.code === 'Enter' && target?.closest?.('button')) return;
+      if (event.code === 'Enter' && this.current?.kind === 'line') {
+        event.preventDefault();
+        this.nextLine();
+        return;
+      }
       if (this.current?.kind !== 'choice') return;
       const index = Number(event.key) - 1;
       if (Number.isInteger(index) && index >= 0 && index < this.current.options.length) {
@@ -63,7 +74,7 @@ export class DialogueSystem {
   }
 
   update(dt: number) {
-    if (!this.current) return;
+    if (!this.current || this.paused) return;
     this.elapsed += dt;
 
     if (this.current.kind === 'line') {
@@ -73,6 +84,7 @@ export class DialogueSystem {
     }
 
     const timeout = this.current.timeout ?? 5;
+    if (timeout <= 0) { this.hud.setChoiceProgress(-1); return; }
     this.hud.setChoiceProgress(Math.max(0, 1 - this.elapsed / timeout));
     if (this.elapsed >= timeout) {
       if (this.current.silence) this.selectChoice(this.current.silence);
@@ -94,6 +106,13 @@ export class DialogueSystem {
     this.hud.clearDialogueChoices();
     this.hud.hideDialogue();
   }
+
+  nextLine(): void {
+    // Debounce a tap and never accidentally advance a choice or a paused dialogue.
+    if (!this.paused && this.current?.kind === 'line' && this.elapsed >= 0.25) this.advance();
+  }
+
+  setPaused(paused: boolean): void { this.paused = paused; }
 
   private advance() {
     this.voice?.stopLine();
@@ -125,11 +144,11 @@ export class DialogueSystem {
         if (option) this.selectChoice(option);
       },
     );
-    this.hud.setChoiceProgress(1);
+    this.hud.setChoiceProgress((this.current.timeout ?? 5) <= 0 ? -1 : 1);
   }
 
   private selectChoice(option: DialogueChoiceOption) {
-    if (this.current?.kind !== 'choice') return;
+    if (this.paused || this.current?.kind !== 'choice') return;
     const choice = this.current;
     choice.onSelect?.(option.id);
     if (option.followUp?.length) this.queue.unshift(...option.followUp);

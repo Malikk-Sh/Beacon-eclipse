@@ -6,6 +6,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { GameWorld } from '../src/game/World';
 import { SchoolArea } from '../src/world/areas/SchoolArea';
 import { HarborDistrict } from '../src/world/HarborDistrict';
+import { MysteryAtmosphere } from '../src/world/MysteryAtmosphere';
 import { WorldDetailPass } from '../src/world/WorldDetailPass';
 import { InputController } from '../src/game/InputController';
 import { SaveSystem } from '../src/game/SaveSystem';
@@ -30,6 +31,7 @@ function fixture(t: TestContext, bridge = true) {
   new SchoolArea(new THREE.Group(), physics, new THREE.Vector3(0, 0, -60));
   new WorldDetailPass(world.scene, physics);
   const state = createDefaultStoryState();
+  new MysteryAtmosphere(world.scene, physics, state);
   state.progress.lighthousePowered = true;
   state.progress.bridgeStarted = bridge;
   const player = new Player(physics, world.scene, new THREE.Vector3(0, 0.02, 3));
@@ -49,7 +51,7 @@ function fixture(t: TestContext, bridge = true) {
   safety.restore(player.position);
   tick(30);
   function walk(x: number, z: number) {
-    const maxFrames = Math.ceil(Math.hypot(x - player.position.x, z - player.position.z) / 5.1 * 60) + 90;
+    const maxFrames = Math.ceil(Math.hypot(x - player.position.x, z - player.position.z) / 2.8 * 60) + 180;
     for (let i = 0; i < maxFrames; i++) {
       input.movement.set(x - player.position.x, player.position.z - z);
       if (input.movement.length() < 0.1) break;
@@ -76,7 +78,8 @@ test('walk from lighthouse, past distributor, up ramp and across deployed bridge
   s.walk(0, -59);
   assert.equal(canEnterSchool(s.player.position, s.player.grounded, s.world.isBridgeReady), true);
   assert.equal(s.rescues(), 0);
-  s.walk(0, -73);
+  s.walk(1.3, -73);
+  s.walk(1.3, -70);
   s.walk(0, -12);
   assert.equal(s.rescues(), 0, 'the return route must also be continuous');
 });
@@ -233,7 +236,7 @@ test('the optional pallet needs a jump, supports a landing and can be walked off
   s.tick(30);
   assert.ok(s.player.position.z > 8.1);
   s.input.jump = true;
-  s.tick(16);
+  s.tick(27);
   s.input.movement.set(0, 0);
   s.tick(65);
   assert.ok(s.player.position.y > 0.5);

@@ -26,6 +26,7 @@ export interface StoryProgress {
 
 export interface StoryState {
   version: 1;
+  narrativeRevision: 2;
   savedAt: number;
   player: {
     position: SavedVector3;
@@ -41,6 +42,7 @@ export interface StoryState {
 export function createDefaultStoryState(): StoryState {
   return {
     version: 1,
+    narrativeRevision: 2,
     savedAt: Date.now(),
     player: {
       position: { x: 0, y: 0, z: 24 },

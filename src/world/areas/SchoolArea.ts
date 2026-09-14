@@ -113,6 +113,7 @@ export class SchoolArea {
     node.position.set(0, 0.72, -13);
     node.castShadow = true;
     this.root.add(node);
+    this.addCollider(0, -13, 0.82, 1.42, 0.42, 0.01);
     const nodeLens = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.16, 0.05), this.materials.amberSignal);
     nodeLens.position.set(0, 0.94, -12.76);
     this.root.add(nodeLens);

@@ -155,6 +155,8 @@ test('mobile settings survive a production reload', async ({ page }) => {
     await quality.selectOption('low');
     await page.locator('#cameraSelect').selectOption('first');
     await page.locator('#headMotion').uncheck();
+    await page.locator('#fieldOfView').evaluate((element: HTMLInputElement) => { element.value = '82'; element.dispatchEvent(new Event('input', { bubbles: true })); });
+    await expect(page.locator('#fieldOfViewValue')).toHaveText('82°');
     // BrowserStack's iOS Playwright bridge does not support locator.toHaveValue().
     // Read the native select value instead so the same persistence assertion remains portable.
     await expectSelectValue(quality, 'low');
@@ -167,6 +169,11 @@ test('mobile settings survive a production reload', async ({ page }) => {
     await expectSelectValue(page.locator('#qualitySelect'), 'low');
     await expectSelectValue(page.locator('#cameraSelect'), 'first');
     await expect(page.locator('#headMotion')).not.toBeChecked();
+    await expect(page.locator('#fieldOfViewValue')).toHaveText('82°');
+    await page.locator('#cameraSelect').selectOption('third');
+    await expect(page.locator('#fieldOfViewValue')).toHaveText('55°');
+    await page.locator('#cameraSelect').selectOption('first');
+    await expect(page.locator('#fieldOfViewValue')).toHaveText('82°');
     await activateButton(continueButton);
   });
 
@@ -330,7 +337,7 @@ test('legacy void save resumes safely without losing story choices', async ({ pa
   });
   await page.goto('/', { waitUntil: 'domcontentloaded' });
   await waitForGame(page);
-  await expect(page.locator('#objective')).toContainText('ВОССТАНОВИТЬ РЕКОНСТРУКЦИЮ');
+  await expect(page.locator('#objective')).toContainText('НАСТРОИТЬ СОЙКУ НА ЧАСТОТУ КОЛОКОЛА');
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('beacon-eclipse.save.v1') ?? '{}'));
   expect(saved.player.position.y).toBeGreaterThan(0.25);
   expect(saved.player.position.y).toBeLessThan(0.8);

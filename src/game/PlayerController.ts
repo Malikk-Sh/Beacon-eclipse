@@ -5,6 +5,7 @@ import type { InputController } from './InputController';
 import { LevVisual } from './LevVisual';
 
 export const PLAYER_SCENE_NAME = 'lev-player';
+export const PLAYER_WALK_SPEED = 2.8;
 
 const PLAYER_VISUAL_SCALE = 1;
 const PLAYER_VISUAL_GROUND_OFFSET = 0;
@@ -17,12 +18,16 @@ export class PlayerController {
   private readonly visual = new LevVisual();
   private readonly desiredMove = new THREE.Vector3();
   private readonly yAxis = new THREE.Vector3(0, 1, 0);
-  private readonly speed = 5.1;
+  private readonly velocity = new THREE.Vector3();
+  private readonly velocityChange = new THREE.Vector3();
+  private horizontalSpeed = 0;
   private moving = false;
   private firstPerson = false;
   private verticalSpeed = 0;
   private onGround = false;
   private landingWeight = 0;
+  private groundGrace = 0;
+  private jumpBuffer = 0;
 
   constructor(private readonly physics: RAPIER.World, scene: THREE.Scene, spawn = new THREE.Vector3(0, 0, 24)) {
     this.object.name = PLAYER_SCENE_NAME;
@@ -43,10 +48,16 @@ export class PlayerController {
 
   update(input: InputController, cameraYaw: number, dt: number) {
     this.desiredMove.set(input.movement.x, 0, -input.movement.y);
-    this.moving = this.desiredMove.lengthSq() > 0.001;
+    const amount = Math.min(1, this.desiredMove.length());
+    if (amount < 0.08) this.desiredMove.set(0, 0, 0);
+    else this.desiredMove.normalize().multiplyScalar(amount * PLAYER_WALK_SPEED).applyAxisAngle(this.yAxis, cameraYaw);
+    this.velocityChange.copy(this.desiredMove).sub(this.velocity);
+    const acceleration = amount < 0.08 ? 22 : 14;
+    this.velocity.add(this.velocityChange.clampLength(0, acceleration * dt));
+    this.desiredMove.copy(this.velocity).multiplyScalar(dt);
+    this.moving = this.velocity.lengthSq() > 0.0025;
     if (this.firstPerson) this.object.rotation.y = cameraYaw;
     if (this.moving) {
-      this.desiredMove.normalize().applyAxisAngle(this.yAxis, cameraYaw).multiplyScalar(this.speed * dt);
       const facing = Math.atan2(this.desiredMove.x, this.desiredMove.z) + Math.PI;
       const facingDelta = Math.atan2(
         Math.sin(facing - this.object.rotation.y),
@@ -55,7 +66,10 @@ export class PlayerController {
       const turnBlend = 1 - Math.exp(-dt * 11);
       if (!this.firstPerson) this.object.rotation.y += facingDelta * turnBlend;
     }
-    if (input.consumeJump() && this.onGround) {
+    this.groundGrace = this.onGround ? 0.1 : Math.max(0, this.groundGrace - dt);
+    this.jumpBuffer = input.consumeJump() ? 0.12 : Math.max(0, this.jumpBuffer - dt);
+    if (this.jumpBuffer > 0 && this.groundGrace > 0) {
+      this.jumpBuffer = this.groundGrace = 0;
       this.verticalSpeed = 7.2;
       this.onGround = false;
       this.controller.disableSnapToGround();
@@ -70,6 +84,7 @@ export class PlayerController {
       z: this.desiredMove.z,
     });
     const movement = this.controller.computedMovement();
+    this.horizontalSpeed = Math.hypot(movement.x, movement.z) / Math.max(dt, 0.0001);
     this.moving = Math.hypot(movement.x, movement.z) > 0.001;
     const wasGrounded = this.onGround;
     this.onGround = this.controller.computedGrounded() && this.verticalSpeed <= 0;
@@ -84,7 +99,7 @@ export class PlayerController {
       this.verticalSpeed = 0; // A low ceiling cancels upward velocity.
     }
     this.landingWeight = Math.max(0, this.landingWeight - dt * 4);
-    this.visual.update(dt, this.moving, this.onGround, this.verticalSpeed, this.landingWeight);
+    this.visual.update(dt, this.moving, this.onGround, this.verticalSpeed, this.landingWeight, this.horizontalSpeed / PLAYER_WALK_SPEED);
     this.visual.root.position.y += PLAYER_VISUAL_GROUND_OFFSET;
     const current = this.body.translation();
     this.body.setNextKinematicTranslation({
@@ -101,6 +116,9 @@ export class PlayerController {
     this.onGround = false;
     this.moving = false;
     this.landingWeight = 0;
+    this.velocity.set(0, 0, 0);
+    this.horizontalSpeed = 0;
+    this.jumpBuffer = this.groundGrace = 0;
     this.controller.enableSnapToGround(0.28);
     this.body.setTranslation({
       x: position.x,
@@ -118,11 +136,12 @@ export class PlayerController {
   syncVisual() {
     const position = this.body.translation();
     this.object.position.set(position.x, position.y - 1.05, position.z);
-    audioSystem.setPlayerState(this.object.position, this.moving && this.onGround);
+    audioSystem.setPlayerState(this.object.position, this.moving && this.onGround, this.horizontalSpeed);
   }
 
   setFirstPerson(first: boolean): void { this.firstPerson = first; this.visual.setFirstPerson(first); }
   get isMoving(): boolean { return this.moving; }
+  get movementPace(): number { return Math.min(1, this.horizontalSpeed / PLAYER_WALK_SPEED); }
 
   get position() {
     return this.object.position;

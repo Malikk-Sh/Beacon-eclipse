@@ -3,7 +3,8 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { SchoolArea } from '../world/areas/SchoolArea';
 import type { DialogueSystem } from './DialogueSystem';
 import type { PlayerController } from './PlayerController';
-import { SchoolPromiseScene } from './SchoolPromiseScene';
+import { ThresholdScene } from './ThresholdScene';
+import { SCHOOL_CLUES, line } from './MysteryStory';
 import type { CameraObstacle } from './ThirdPersonCamera';
 
 type MemoryCorruption = 'head-gap' | 'offset-arm' | 'fragmented';
@@ -37,7 +38,7 @@ export class SchoolReconstruction {
   private readonly memoryRoot = new THREE.Group();
   private readonly echoes: SchoolEchoRuntime[] = [];
   private readonly memoryLight = new THREE.PointLight(0xffbd75, 0, 28, 2);
-  private readonly promiseScene: SchoolPromiseScene;
+  private readonly promiseScene: ThresholdScene;
   private readonly localPlayerPosition = new THREE.Vector3();
   private active = false;
   private strength = 0;
@@ -62,7 +63,7 @@ export class SchoolReconstruction {
 
     new SchoolArea(this.root, this.physics, this.entrance, cameraObstacles);
     this.buildMemorySchool();
-    this.promiseScene = new SchoolPromiseScene(this.memoryRoot, this.dialogue, this.entrance);
+    this.promiseScene = new ThresholdScene(this.memoryRoot, this.dialogue, this.entrance);
 
     this.memoryLight.position.copy(this.entrance).add(new THREE.Vector3(0, 3.4, -13));
     this.scene.add(this.memoryLight);
@@ -76,9 +77,9 @@ export class SchoolReconstruction {
 
     if (!silent) {
       this.dialogue.play([
-        { kind: 'line', speaker: 'СОЙКА', text: 'Архивный слой найден.', duration: 2.1 },
-        { kind: 'line', speaker: 'МАРА', text: 'Это не запись. Ты можешь двигаться внутри реконструкции.', duration: 3.2 },
-        { kind: 'line', speaker: 'НИКА', text: 'Здесь... кажется, я уже была.', duration: 2.8 },
+        line('СОЙКА', 'Настроилась. Эти силуэты видны и без моей проекции. Источник находится здесь.'),
+        line('МАРА', 'Три отметки смотрителя. Подойди к доске, фотографии и схеме в коридоре. Я запишу всё в журнал.'),
+        line('НИКА', 'В этой школе никогда не было учеников. Табличку повесили, чтобы сюда не ходили ночью.'),
       ]);
     }
     return true;
@@ -108,6 +109,7 @@ export class SchoolReconstruction {
 
   update(dt: number, player: PlayerController) {
     this.memoryElapsed += dt;
+    this.promiseScene.update(dt);
     const blend = 1 - Math.exp(-dt * 2.6);
     this.strength = THREE.MathUtils.lerp(this.strength, this.targetStrength, blend);
     this.memoryLight.intensity = this.strength * 10;
@@ -152,20 +154,14 @@ export class SchoolReconstruction {
 
       if (distance < echo.radius && !echo.armed && !this.dialogue.isBusy) {
         echo.armed = true;
-        const startedAt = player.position.clone();
-        const accepted = this.dialogue.say(echo.speaker, echo.text, echo.youngLev ? 3.8 : 3.1);
-        if (accepted) {
-          window.setTimeout(() => {
-            if (player.grounded && Math.abs(player.position.y - 0.45) < 0.24
-              && player.position.distanceTo(startedAt) < echo.radius * 1.45 && !echo.heard) {
-              echo.heard = true;
-              this.callbacks.onEchoHeard?.(echo.id);
-            }
-            echo.armed = false;
-          }, 2500);
-        } else {
+        this.dialogue.play([line(echo.speaker, echo.text)], () => {
+          // Discovery is committed by the dialogue's game clock, never a wall-clock timer.
+          if (this.active && player.grounded && Math.abs(player.position.y - 0.45) < 0.24
+            && player.position.distanceTo(this.entrance.clone().add(echo.localPosition)) < echo.radius * 1.45 && !echo.heard) {
+            this.recordClue(echo.id);
+          }
           echo.armed = false;
-        }
+        });
       } else if (distance >= echo.radius * 1.25) {
         echo.armed = false;
       }
@@ -174,10 +170,8 @@ export class SchoolReconstruction {
     if (!this.echoSequenceFired && heardCount >= 3 && !this.dialogue.isBusy) {
       this.echoSequenceFired = true;
       this.dialogue.play([
-        { kind: 'line', speaker: 'ЛЕВ', text: 'Я знаю это место.', duration: 2.1 },
-        { kind: 'line', speaker: 'МАРА', text: 'Лев...', duration: 2.1 },
-        { kind: 'line', speaker: 'НИКА', text: 'Тогда почему ты звучишь так, будто боишься вспомнить?', duration: 3.2 },
-        { kind: 'line', speaker: 'СОЙКА', text: 'Ещё один устойчивый фрагмент. В конце коридора.', duration: 2.8 },
+        line('ЛЕВ', 'Школа — это узел. Колокол подаёт сигнал, а порт повторяет ответ.'),
+        line('СОЙКА', 'Три отметки совпали. В конце коридора открылась ещё одна линия.'),
       ], () => {
         if (this.completionFired) return;
         this.promiseUnlocked = true;
@@ -210,43 +204,32 @@ export class SchoolReconstruction {
     return this.echoes.filter((echo) => echo.heard).length;
   }
 
+  recordClue(id: string): boolean {
+    const echo = this.echoes.find(item => item.id === id);
+    if (!echo || echo.heard) return false;
+    echo.heard = true;
+    this.callbacks.onEchoHeard?.(id);
+    return true;
+  }
+
+  get nextCluePosition(): THREE.Vector3 {
+    if (this.heardEchoCount >= 3) return this.promiseScene.anchorPosition.clone();
+    const next = this.echoes.find(e => !e.heard);
+    return next ? this.entrance.clone().add(next.localPosition) : this.reconstructionNode.clone();
+  }
+
   private buildMemorySchool() {
     this.addMemoryArchitecture();
 
-    const definitions: SchoolEchoDefinition[] = [
-      {
-        id: 'teacher',
-        localPosition: new THREE.Vector3(-2.8, 0.45, -7),
-        speaker: 'УЧИТЕЛЬНИЦА',
-        text: 'Ника, твой отец опять заберёт тебя позже?',
-        radius: 2.4,
-        corruption: 'fragmented',
-      },
-      {
-        id: 'student',
-        localPosition: new THREE.Vector3(2.6, 0.45, -12),
-        speaker: 'ДЕВОЧКА',
-        text: 'Твой папа правда работает на дамбе?',
-        radius: 2.25,
-        corruption: 'head-gap',
-      },
-      {
-        id: 'young-lev',
-        localPosition: new THREE.Vector3(-0.8, 0.45, -20),
-        speaker: 'МОЛОДОЙ ЛЕВ',
-        text: 'Пять минут. Потом я весь твой, обещаю.',
-        radius: 2.5,
-        youngLev: true,
-      },
-      {
-        id: 'announcement',
-        localPosition: new THREE.Vector3(3.0, 0.45, -27),
-        speaker: 'ГРОМКОГОВОРИТЕЛЬ',
-        text: 'Учебная эвакуация перенесена на пятницу, семнадцать ноль-ноль.',
-        radius: 2.6,
-        corruption: 'offset-arm',
-      },
-    ];
+    const definitions: SchoolEchoDefinition[] = SCHOOL_CLUES.map((clue, index) => ({
+      id: clue.id,
+      localPosition: new THREE.Vector3(clue.x, 0.45, clue.z - this.entrance.z),
+      speaker: clue.speaker,
+      text: clue.text,
+      radius: [2.4, 2.25, 2.5, 2.6][index],
+      youngLev: index === 2,
+      corruption: (['fragmented', 'head-gap', undefined, 'offset-arm'] as const)[index],
+    }));
 
     for (const definition of definitions) {
       const material = new THREE.MeshBasicMaterial({

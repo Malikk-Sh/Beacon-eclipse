@@ -14,15 +14,15 @@ export class WarehouseCutoff {
     this.panel.className = 'warehouse-cutoff hidden';
     this.panel.setAttribute('aria-labelledby', 'cutoffTitle');
     this.panel.innerHTML = `
-      <div class="cutoff-signal"><span></span> СВЯЗЬ С НИКОЙ УСТАНОВЛЕНА</div>
+      <div class="cutoff-signal"><span></span> КАНАЛ «НИКА» · ОБРАТНАЯ ПЕРЕДАЧА</div>
       <h2 id="cutoffTitle">СКЛАД 04</h2>
-      <p id="cutoffHelp">Отключение освободит 4 единицы энергии и прервёт связь.<br>Отпустите кнопку, чтобы остановиться.</p>
+      <p id="cutoffHelp">Отсечение остановит передачу склада и освободит 4 единицы для моста.<br>Отпустите кнопку, чтобы остановиться.</p>
       <div class="cutoff-actions">
         <button type="button" class="cutoff-hold" aria-describedby="cutoffHelp">
           <span class="cutoff-fill" aria-hidden="true"></span>
           <b>УДЕРЖИВАТЬ — ОТКЛЮЧИТЬ</b>
         </button>
-        <button type="button" class="cutoff-cancel">ОСТАВИТЬ СВЯЗЬ</button>
+        <button type="button" class="cutoff-cancel">ПОКА ОСТАВИТЬ КАНАЛ</button>
       </div>
     `;
     root.appendChild(this.panel);
